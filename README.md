@@ -10,7 +10,7 @@ Iñaki Baz Castillo at eFace2Face, inc. (inaki.baz@eface2face.com)
 
 ## License
 
-Copyright © 2014 eFace2Face, inc. [www.eface2face.com](http://www.eface2face.com), All Rights Reserved.
+Copyright © 2014 eFace2Face, inc. ([www.eface2face.com](http://www.eface2face.com)), All Rights Reserved.
 
 
 ## Building
@@ -47,21 +47,21 @@ Include `doctortc-X.Y.Z.min.js` (or any of the resulting files under `dist/`) in
 ## API
 
 
-### `DoctoRTC.hasWebRTC()`
+### DoctoRTC.hasWebRTC()
 
 Checks WebRTC support in the current browser.
 
 * @return:  *true* if WebRTC is supported, *false* otherwise.
 
 
-### `DoctoRTC.setVerbose(verbose)`
+### DoctoRTC.setVerbose(verbose)
 
 Enables verbose logging (non intended for production sites). By default not set.
 
 * @param `verbose`: `true` for verbose logging, `false` for non verbose logging.
 
 
-### `DoctoRTC.testNetwork(turnServer, callback, errback, options)`
+### DoctoRTC.testNetwork(turnServer, callback, errback, options)
 
 Checks network connectivity by connecting to a TURN server and performs bandwitdh calculation by sending and receiving packets via WebRTC DataChannels.
 
@@ -109,6 +109,4 @@ DoctoRTC.testNetwork(
     }
 );
 ```
-
-
 
