@@ -68,14 +68,14 @@ Checks network connectivity by connecting to a TURN server and performs bandwitd
 * @param `turnServer`: An Object with the TURN server information. This parameter matches the [`RTCIceServer`](http://www.w3.org/TR/webrtc/#idl-def-RTCIceServer) Object in WebRTC API.
 * @param `callback`: User provided function that is called upon test success. The function is called with a single `bandwidth` argument whose value is the measured speed of the connection in kilobits per second (kbps).
 * @param: `errback`: User provided function that is called upon test failure. The function is called with a single `error` argument whose value is one of the following strings:
-  * `CONNECTION TIMEOUT`: The connection to the TURN server failed due to timeout (note that, as per current WebRTC specs, if the TURN crendentials are wrong the application cannot realize of it so timeout will raise).
-  * `TEST_TIMEOUT`: Connection to the TURN server succeeded but the test could not complete in time.
-  * `INTERNAL_ERROR`: Unknown or unexpected error (may be caused due to the browser's WebRTC stack, issues in the TURN server...).
+   * `CONNECTION TIMEOUT`: The connection to the TURN server failed due to timeout (note that, as per current WebRTC specs, if the TURN crendentials are wrong the application cannot realize of it so timeout will raise).
+   * `TEST_TIMEOUT`: Connection to the TURN server succeeded but the test could not complete in time.
+   * `INTERNAL_ERROR`: Unknown or unexpected error (may be caused due to the browser's WebRTC stack, issues in the TURN server...).
 * @param `options`: An Object with optional extra parameters. Available parameters in this Object are:
-  * `connectTimeout`: An integer representing the maximum duration while connecting to the TURN server (in milliseconds). Default value is 4000.
-  * `testTimeout`: An integer representing the maximum duration while sending packets over the DataChannel (in milliseconds). Default value is 8000.
-  * `numPackets`: An integer representing the ammount of packets to be sent on the test. Default value is 50.
-  * `turnServer2`: Separate TURN server information for the receiver DataChannel. This allows, for example, testing UDP in upstream and TCP in downstream. Default value is null (so main `turnServer` is also used).
+   * `connectTimeout`: An integer representing the maximum duration while connecting to the TURN server (in milliseconds). Default value is 4000.
+   * `testTimeout`: An integer representing the maximum duration while sending packets over the DataChannel (in milliseconds). Default value is 8000.
+   * `numPackets`: An integer representing the ammount of packets to be sent on the test. Default value is 50.
+   * `turnServer2`: Separate TURN server information for the receiver DataChannel. This allows, for example, testing UDP in upstream and TCP in downstream. Default value is null (so main `turnServer` is also used).
 
 #### Usage example
 
