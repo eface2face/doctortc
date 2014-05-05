@@ -41,4 +41,6 @@ grunt dist
 
 *TODO*
 
+(see `test/test.js` and open `test/index.html` with the JavaScript console open)
+
 
