@@ -5,12 +5,12 @@ A JavaScript utility for checking browser's WebRTC support and performing bandwi
 
 ## Author
 
-Iñaki Baz Castillo at eFace2Face, inc. (mailto:inaki.baz@eface2face.com)
+Iñaki Baz Castillo at eFace2Face, inc. (inaki.baz@eface2face.com)
 
 
 ## License
 
-Copyright © 2014 eFace2Face, inc. (http://www.eface2face.com), All Rights Reserved.
+Copyright © 2014 eFace2Face, inc. [www.eface2face.com](http://www.eface2face.com), All Rights Reserved.
 
 
 ## Building

@@ -4,7 +4,7 @@
 	"titleLowCase": "doctortc.js",
 	"description": "A JavaScript utility for checking browser's WebRTC support and performing bandwidth calculation among other features such as network connectivity checks (with the help of a TURN server).",
 	"version": "0.0.1",
-	"author": "Iñaki Baz Castillo at eFace2Face, inc. (mailto:inaki.baz@eface2face.com)",
+	"author": "Iñaki Baz Castillo at eFace2Face, inc. (inaki.baz@eface2face.com)",
 	"license": "Copyright © 2014 eFace2Face, inc. (http://www.eface2face.com), All Rights Reserved.",
 	"devDependencies": {
 		"grunt": "~0.4.4",
