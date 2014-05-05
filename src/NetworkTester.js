@@ -37,11 +37,11 @@
 		this.packetSenderTimer = null;
 		this.testBeginTime = null;
 		this.testEndTime = null;
-		this.connectTimeout = options.connectTimeout || 4000;  // Default 4 seconds.
+		this.connectTimeout = options.connectTimeout || 4;  // Default 4 seconds.
 		this.connectionTimer = null;
-		this.testTimeout = options.testTimeout || 8000;  // Default 8 seconds.
+		this.testTimeout = options.testTimeout || 8;  // Default 8 seconds.
 		this.testTimer = null;
-		this.numPackets = options.numPackets || 50;  // Default 50 packets.
+		this.numPackets = options.numPackets || 200;  // Default 200 packets.
 		this.numPacketsSent = 0;
 		this.numPacketsReceived = 0;
 
@@ -102,7 +102,7 @@
 		// Create a timeout for the connection establishment.
 		this.connectionTimer = window.setTimeout(function() {
 			self.onConnectionTimeout();
-		}, this.connectTimeout);
+		}, this.connectTimeout * 1000);
 	};
 
 	/* Methods. */
@@ -232,7 +232,7 @@
 		// dc1 arrives.
 		this.connectionTimer = window.setTimeout(function() {
 			self.onStartMessageTimeout();
-		}, this.connectTimeout);
+		}, this.connectTimeout * 1000);
 	};
 
 	NetworkTester.prototype.onStartMessageTimeout = function() {
@@ -271,20 +271,20 @@
 		}
 		this.packetSize = this.packet.length;
 
-		DoctoRTC.debug(CLASS, "sendPackets", "packet length: " + this.packetSize);
+		DoctoRTC.debug(CLASS, "sendPackets", "packet length: " + this.packetSize + " bytes");
 
 		this.testBeginTime = new Date();
 
 		// Run the testTimer.
 		this.testTimer = window.setTimeout(function() {
 			self.onTestTimeout();
-		}, this.testTimeout);
+		}, this.testTimeout * 1000);
 
 		this.packetSenderTimer = window.setInterval(function() {
 			try {
 				self.dc1.send(self.packet);
 			} catch(error) {
-				DoctoRTC.error(CLASS, "sendPackets", "error sending a packet: " + error.message);
+				DoctoRTC.error(CLASS, "sendPackets", "error sending packet " + self.numPacketsSent + ": " + error.message);
 				return;
 			}
 			self.numPacketsSent++;

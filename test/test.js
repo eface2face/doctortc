@@ -14,22 +14,22 @@ $(document).ready(function() {
 		},
 		// callback
 		function(kbps) {
-			console.log("detected network speed: " + kbps + " kbps");
+			console.log("CALLBACK: detected network speed: " + kbps + " kbps");
 		},
 		// errback
 		function(error) {
-			console.error("error: " + error);
+			console.error("ERRBACK: " + error);
 		},
 		// options
 		{
-			connectTimeout: 4000,
-			testTimeout: 2000,
-			turnServer2: {
-				url: "turn:turn.ef2f.com:3478?transport=tcp",
-				username: "turn",
-				credential: "ef2f"
-			},
-			numPackets: 100
+			connectTimeout: 3,
+			testTimeout: 6,
+			// turnServer2: {
+			// 	url: "turn:turn.ef2f.com:3478?transport=tcp",
+			// 	username: "turn",
+			// 	credential: "ef2f"
+			// },
+			numPackets: 200
 		}
 	);
 

@@ -72,9 +72,9 @@ Checks network connectivity by connecting to a TURN server and performs bandwitd
     * `TEST_TIMEOUT`: Connection to the TURN server succeeded but the test could not complete in time.
     * `INTERNAL_ERROR`: Unknown or unexpected error (may be caused due to the browser's WebRTC stack, issues in the TURN server...).
 * @param `options`: An Object with optional extra parameters. Available parameters in this Object are:
-    * `connectTimeout`: An integer representing the maximum duration while connecting to the TURN server (in milliseconds). Default value is 4000.
-    * `testTimeout`: An integer representing the maximum duration while sending packets over the DataChannel (in milliseconds). Default value is 8000.
-    * `numPackets`: An integer representing the ammount of packets to be sent on the test. Default value is 50.
+    * `connectTimeout`: An integer representing the maximum duration while connecting to the TURN server (in seconds). Default value is 4.
+    * `testTimeout`: An integer representing the maximum duration while sending packets over the DataChannel (in seconds). Default value is 8.
+    * `numPackets`: An integer representing the ammount of packets to be sent on the test. Default value is 200.
     * `turnServer2`: Separate TURN server information for the receiver DataChannel. This allows, for example, testing UDP in upstream and TCP in downstream. Default value is null (so main `turnServer` is also used).
 
 #### Usage example
