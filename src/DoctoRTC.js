@@ -13,10 +13,8 @@ var DoctoRTC = (function() {
 		}
 	};
 
-	// Include EventEmitter.js and get DoctoRTC.EventEmitter and DoctoRTC.Event.
-	@@include('../src/EventEmitter.js')
+	/* Getters. */
 
-	// Getters.
 	Object.defineProperties(DoctoRTC, {
 		title: {
 			get: function(){ return '<%= pkg.title %>'; }
@@ -34,8 +32,8 @@ var DoctoRTC = (function() {
 
 	/* API functions. */
 
-	DoctoRTC.setVerbose = function(value){
-		DoctoRTC.settings.verbose = value;
+	DoctoRTC.setVerbose = function(verbose){
+		DoctoRTC.settings.verbose = verbose;
 	};
 
 	DoctoRTC.hasWebRTC = function() {
@@ -53,7 +51,7 @@ var DoctoRTC = (function() {
 		new DoctoRTC.NetworkTester(turnServer, callback, errback, options);
 	};
 
-	/* Private class functions. */
+	/* Private functions. */
 
 	DoctoRTC.debug = function(klass, method, msg) {
 		if (DoctoRTC.settings.verbose) {

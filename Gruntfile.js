@@ -19,11 +19,9 @@
 
 module.exports = function(grunt) {
 
-	// NOTE: src/EventEmitter.js is included with grunt-include-replace (via @@include).
 	var jsFiles = [
 		'src/DoctoRTC.js',
 		'src/Adaptor.js',
-		'src/Utils.js',
 		'src/NetworkTester.js'
 	];
 
@@ -59,17 +57,6 @@ module.exports = function(grunt) {
 					process: true
 				},
 				nonull: true
-			}
-		},
-
-		includereplace: {
-			dist: {
-				src: 'dist/<%= pkg.name %>-<%= pkg.version %>.js',
-				dest: './'
-			},
-			devel: {
-				src: 'dist/<%= pkg.name %>-devel.js',
-				dest: './'
 			}
 		},
 
@@ -118,17 +105,16 @@ module.exports = function(grunt) {
 
 	// Load Grunt plugins.
 	grunt.loadNpmTasks('grunt-contrib-concat');
-	grunt.loadNpmTasks('grunt-include-replace');
 	grunt.loadNpmTasks('grunt-contrib-jshint');
 	grunt.loadNpmTasks('grunt-contrib-uglify');
 	grunt.loadNpmTasks('grunt-contrib-watch');
 
 
 	// Task for building everything and generate doctortc-devel.js (uncompressed).
-	grunt.registerTask('devel', ['concat:devel', 'includereplace:devel', 'jshint:devel']);
+	grunt.registerTask('devel', ['concat:devel', 'jshint:devel']);
 
 	// Task for building doctortc-X.Y.Z.js (uncompressed) and doctortc-X.Y.Z.min.js (minified).
-	grunt.registerTask('dist', ['concat:dist', 'includereplace:dist', 'jshint:dist', 'uglify:dist']);
+	grunt.registerTask('dist', ['concat:dist', 'jshint:dist', 'uglify:dist']);
 
 	// Default task is an alias for 'devel'.
 	grunt.registerTask('default', ['devel']);

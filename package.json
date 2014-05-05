@@ -2,14 +2,13 @@
 	"name": "doctortc",
 	"title": "DoctoRTC.js",
 	"titleLowCase": "doctortc.js",
-	"description": "A JavaScript library that checks browser's WebRTC support and performs bandwidth calculation among other features such as network connectivity checks (with the help of a TURN server).",
+	"description": "A JavaScript utility for checking browser's WebRTC support and performing bandwidth calculation among other features such as network connectivity checks (with the help of a TURN server).",
 	"version": "0.0.1",
-	"author": "Iñaki Baz Castillo at eFace2Face, inc. <mailto:inaki.baz@eface2face.com>",
-	"license": "Copyright 2014 Iñaki Baz Castillo <mailto:inaki.baz@eface2face.com> at eFace2Face, inc. <http://http://www.eface2face.com>",
+	"author": "Iñaki Baz Castillo at eFace2Face, inc. (mailto:inaki.baz@eface2face.com)",
+	"license": "Copyright © 2014 eFace2Face, inc. (http://www.eface2face.com), All Rights Reserved.",
 	"devDependencies": {
 		"grunt": "~0.4.4",
 		"grunt-contrib-concat": "0.4.0",
-		"grunt-include-replace": "1.2.0",
 		"grunt-contrib-jshint": "0.10.0",
 		"grunt-contrib-uglify": "0.4.0",
 		"grunt-contrib-watch": "0.6.1"

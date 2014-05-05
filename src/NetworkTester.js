@@ -5,7 +5,12 @@
 (function(DoctoRTC) {
 	var
 		NetworkTester,
-		CLASS = "NetworkTester";
+		CLASS = "NetworkTester",
+		ERRORS = {
+			CONNECTION_TIMEOUT: "CONNECTION TIMEOUT",
+			TEST_TIMEOUT: "TEST TIMEOUT",
+			INTERNAL_ERROR: "INTERNAL ERROR"
+		};
 
 	var sdpConstraints = {
 		mandatory: {
@@ -20,26 +25,42 @@
 	NetworkTester = function(turnServer, callback, errback, options) {
 		this.callback = callback;
 		this.errback = errback;
-		this.options = options || {};
+
+		options = options || {};
+
+		var self = this;
 
 		this.dc1Open = false;
 		this.dc2Open = false;
-
 		this.packet = null;
 		this.packetSize = null;
 		this.packetSenderTimer = null;
 		this.testBeginTime = null;
 		this.testEndTime = null;
-		this.connectTimeout = this.options.connectTimeout || 4000;  // Default connection timeout = 4 seconds.
+		this.connectTimeout = options.connectTimeout || 4000;  // Default 4 seconds.
 		this.connectionTimer = null;
-		this.testTimeout = this.options.testTimeout || 10000;  // Default connection timeout = 4 seconds.
+		this.testTimeout = options.testTimeout || 8000;  // Default 8 seconds.
 		this.testTimer = null;
-		this.numPackets = this.options.numPackets || 50;  // Default number of packets to send.
+		this.numPackets = options.numPackets || 50;  // Default 50 packets.
 		this.numPacketsSent = 0;
 		this.numPacketsReceived = 0;
 
-		var turnServer2 = this.options.turnServer2 || turnServer;
-		var self = this;
+		// NOTE: WebRTC states that RTCIceServer MUST contain a "urls" parameter, but Firefox
+		// requires "url" (old way). Fix it.
+		if (turnServer.urls) {
+			turnServer.url = turnServer.urls;
+		}
+		else if (turnServer.url) {
+			turnServer.urls = turnServer.url;
+		}
+		if (options.turnServer2 && options.turnServer2.urls) {
+			options.turnServer2.url = options.turnServer2.urls;
+		}
+		else if (options.turnServer2 && options.turnServer2.url) {
+			options.turnServer2.urls = options.turnServer2.url;
+		}
+
+		var turnServer2 = options.turnServer2 || turnServer;
 
 		// PeerConnection options.
 		var pcServers1 = { iceServers: [turnServer] };
@@ -62,8 +83,8 @@
 		};
 
 		// Create a DataChannel in each PeerConnection.
-		this.dc1 = this.pc1.createDataChannel("NetworkTester-Channel-1", dcOptions);
-		this.dc2 = this.pc2.createDataChannel("NetworkTester-Channel-1", dcOptions);
+		this.dc1 = this.pc1.createDataChannel("Channel 1", dcOptions);
+		this.dc2 = this.pc2.createDataChannel("Channel 2", dcOptions);
 
 		// Set DataChannel events.
 		this.dc1.onopen = function() { self.onOpen1(); };
@@ -106,11 +127,11 @@
 		DoctoRTC.error(CLASS, "onCreateOfferError1", "error: " + error);
 
 		// Close and fire the user's errback.
-		this.close("internal error");
+		this.close(ERRORS.INTERNAL_ERROR);
 	};
 
 	NetworkTester.prototype.onCreateAnswerSuccess2 = function(desc) {
-		DoctoRTC.debug(CLASS, "onCreateAnswerSucess1", "answer:\n\n" + desc.sdp + "\n");
+		DoctoRTC.debug(CLASS, "onCreateAnswerSucess2", "answer:\n\n" + desc.sdp + "\n");
 
 		this.pc2.setLocalDescription(desc);
 		this.pc1.setRemoteDescription(desc);
@@ -120,7 +141,7 @@
 		DoctoRTC.error(CLASS, "onCreatAnswerError2", "error: " + error);
 
 		// Close and fire the user's errback.
-		this.close("internal error");
+		this.close(ERRORS.INTERNAL_ERROR);
 	};
 
 	NetworkTester.prototype.onIceCandidate1 = function(event) {
@@ -172,10 +193,10 @@
 	NetworkTester.prototype.onConnectionTimeout = function() {
 		DoctoRTC.error(CLASS, "onConnectionTimeout", "timeout connecting to the TURN server");
 
-		this.close("connection timeout");
+		this.close(ERRORS.CONNECTION_TIMEOUT);
 	};
 
-	NetworkTester.prototype.close = function(errorStatus) {
+	NetworkTester.prototype.close = function(errorCode) {
 		DoctoRTC.debug(CLASS, "close");
 
 		try { this.dc1.close(); } catch(error) {}
@@ -194,8 +215,8 @@
 		window.clearTimeout(this.testTimer);
 
 		// Call the user's errback if error is given.
-		if (errorStatus) {
-			this.errback(errorStatus);
+		if (errorCode) {
+			this.errback(errorCode);
 		}
 	};
 
@@ -217,7 +238,7 @@
 	NetworkTester.prototype.onStartMessageTimeout = function() {
 		DoctoRTC.error(CLASS, "onStartMessageTimeout", "timeout sending the 'start' message from dc2 to dc1");
 
-		this.close("connection timeout");
+		this.close(ERRORS.CONNECTION_TIMEOUT);
 	};
 
 	NetworkTester.prototype.onMessage1 = function(event) {
@@ -233,7 +254,7 @@
 		}
 		else {
 			DoctoRTC.error(CLASS, "onMessage1", "unexpected message received");
-			this.close("internal error");
+			this.close(ERRORS.INTERNAL_ERROR);
 		}
 	};
 
@@ -250,7 +271,7 @@
 		}
 		this.packetSize = this.packet.length;
 
-		DoctoRTC.debug(CLASS, "sendPackets", "packet length: " + this.packetSize);  // remove
+		DoctoRTC.debug(CLASS, "sendPackets", "packet length: " + this.packetSize);
 
 		this.testBeginTime = new Date();
 
@@ -259,7 +280,6 @@
 			self.onTestTimeout();
 		}, this.testTimeout);
 
-		// for (var j=1; j <= this.numPackets; j++) {
 		this.packetSenderTimer = window.setInterval(function() {
 			try {
 				self.dc1.send(self.packet);
@@ -278,26 +298,12 @@
 				window.clearTimeout(self.packetSenderTimer);
 			}
 		}, 0);
-		// }
 	};
 
 	NetworkTester.prototype.onMessage2 = function(event) {
-		DoctoRTC.debug(CLASS, "onMessage2");
-
 		// dc2 just must receive packet messages from dc1.
 		if (event.data.length === this.packetSize) {
 			this.numPacketsReceived++;
-
-			// TMP
-			if (this.numPacketsReceived === 1) {
-				var firstPacketTime = new Date() - this.testBeginTime;
-				var kilobits = (this.packetSize * 8) / 1024;
-				var seconds = firstPacketTime / 1000;
-				// Divide the num of kilobits sent by the elapsed seconds, and divide by two.
-				var kbps = window.Math.round( (kilobits / seconds) / 2);  // kbps.
-
-				DoctoRTC.warn(CLASS, "onMessage2", "firstPacket speed: " + kbps + " kbps");
-			}
 
 			DoctoRTC.debug(CLASS, "onMessage2", "received packet " + this.numPacketsReceived + "/" + this.numPackets);
 
@@ -311,14 +317,14 @@
 		}
 		else {
 			DoctoRTC.error(CLASS, "onMessage2", "unexpected message received");
-			this.close("internal error");
+			this.close(ERRORS.INTERNAL_ERROR);
 		}
 	};
 
 	NetworkTester.prototype.onTestTimeout = function() {
 		DoctoRTC.error(CLASS, "onTestTimeout", "test timeout");
 
-		this.close("test timeout");
+		this.close(ERRORS.TEST_TIMEOUT);
 	};
 
 	NetworkTester.prototype.calculateResult = function() {
@@ -326,19 +332,18 @@
 		var packetSize = this.packetSize;  // Bytes
 		// Add DTLS header size (23 bytes): TODO
 		packetSize += 23;
-		// Add SCTP header size (12 Bytes) + SCTP chunk fields (4 Bytess).
+		// Add SCTP header size (12 Bytes) + SCTP chunk fields (4 Bytes).
 		packetSize += 16;
-
 		var totalSize = packetSize * this.numPackets;  // Bytes.
 		var kilobits = (totalSize * 8) / 1024;
 		var seconds = elapsedTime / 1000;
-		// Divide the num of kilobits sent by the elapsed seconds, and divide by two.
-		var kbps = window.Math.round( (kilobits / seconds) / 2);  // kbps.
+		// Divide the num of sent kilobits by elapsed seconds, and multiply by two (up & down).
+		var bandwidth = window.Math.round( (kilobits / seconds) * 2);  // kbps.
 
-		DoctoRTC.debug(CLASS, "calculateResult", "sent: " + totalSize + " bytes, elapsed: " + elapsedTime + " ms | result: " + kbps + " kbps");
+		DoctoRTC.debug(CLASS, "calculateResult", "[sent: " + totalSize + " bytes, received: " + totalSize + " bytes, elapsed: " + elapsedTime + " ms, bandwidth: " + bandwidth + " kbps]");
 
-		// Fire the user's callback.
-		this.callback(kbps);
+		// Fire the user's success callback.
+		this.callback(bandwidth);
 	};
 
 	DoctoRTC.NetworkTester = NetworkTester;
