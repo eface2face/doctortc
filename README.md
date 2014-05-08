@@ -1,16 +1,25 @@
 # DoctoRTC.js
 
+<!-- MarkdownTOC depth=10 -->
+
+- Building
+- Usage
+- API
+    - DoctoRTC.hasWebRTC()
+    - DoctoRTC.setVerbose(verbose)
+    - DoctoRTC.testNetwork(turnServer, callback, errback, options)
+        - callback
+        - Usage example
+- Author
+- License
+
+<!-- /MarkdownTOC -->
+
+
 A JavaScript utility for checking browser's WebRTC support and performing bandwidth calculation among other features such as network connectivity checks (with the help of a TURN server).
 
 
-## Author
 
-Iñaki Baz Castillo at eFace2Face, inc. (inaki.baz@eface2face.com)
-
-
-## License
-
-Copyright © 2014 eFace2Face, inc. ([www.eface2face.com](http://www.eface2face.com)), All Rights Reserved.
 
 
 ## Building
@@ -128,3 +137,12 @@ DoctoRTC.testNetwork(
 );
 ```
 
+
+## Author
+
+Iñaki Baz Castillo at eFace2Face, inc. (inaki.baz@eface2face.com)
+
+
+## License
+
+Copyright © 2014 eFace2Face, inc. ([www.eface2face.com](http://www.eface2face.com)), All Rights Reserved.
