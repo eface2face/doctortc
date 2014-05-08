@@ -486,21 +486,18 @@
 		// Number of packets received out of order.
 		statistics.outOfOrder = this.outOfOrderReceivedPackets;
 
-		// Packet loss.
+		// Packet loss and average delay.
 		var packetLoss = 0;
+		// var avgDelay = 0;  // TODO
 		for(var i = this.packetsInfo.length - 1; i >= 0; i--) {
 			if (! this.packetsInfo[i].recvTime) {
 				packetLoss++;
 			}
 		}
-		statistics.packetLost = packetLoss;
-
-		// TMP
-		console.log(this.packetsInfo);
-		console.log(statistics);
+		statistics.packetLoss = packetLoss;
 
 		// Fire the user's success callback.
-	 	this.callback(this.packetsInfo);
+	 	this.callback(this.packetsInfo, statistics);
 	};
 
 	DoctoRTC.NetworkTester = NetworkTester;

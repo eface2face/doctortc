@@ -84,7 +84,7 @@ Checks network connectivity by connecting to a TURN server and performs bandwitd
 The success callback is called with two arguments `packetsInfo` and `statistics`:
 
 * `packetsInfo`: An Array with the information each packet sent during the test. Each position in the array contains an Object with the following keys:
-    * `sendTime`: The time in which this packet was sent. It is a delta time (in milliseconds) since the test started.
+    * `sentTime`: The time in which this packet was sent. It is a delta time (in milliseconds) since the test started.
     * `recvTime`: The time in which this packet was received (may be `null` if the packet was lost!). It is a delta time (in milliseconds) since the test started.
     * `elapsedTime`: The elapsed time (in milliseconds) between this packet was sent and received.
 * `statistics`: An Object with some statistics about the test. Keys in the Object are:
