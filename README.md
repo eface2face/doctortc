@@ -1,28 +1,9 @@
 # DoctoRTC.js
 
-<!-- MarkdownTOC depth=10 -->
-
-- Building
-- Usage
-- API
-    - DoctoRTC.hasWebRTC()
-    - DoctoRTC.setVerbose(verbose)
-    - DoctoRTC.testNetwork(turnServer, callback, errback, options)
-        - callback
-        - Usage example
-- Author
-- License
-
-<!-- /MarkdownTOC -->
-
-
 A JavaScript utility for checking browser's WebRTC support and performing bandwidth calculation among other features such as network connectivity checks (with the help of a TURN server).
 
 
-
-
-
-## Building
+## Build
 
 Must have **nodejs** (which provides `npm` command) and **grunt-cli** (which provides `grunt` command) installed.
 
