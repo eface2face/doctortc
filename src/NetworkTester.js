@@ -469,7 +469,7 @@
 	};
 
 	NetworkTester.prototype.endTest = function() {
-		DoctoRTC.error(CLASS, "endTest");
+		DoctoRTC.debug(CLASS, "endTest");
 
 		// Fill the statistics Object.
 		var statistics = {};
@@ -496,6 +496,7 @@
 		statistics.packetLost = packetLoss;
 
 		// TMP
+		console.log(this.packetsInfo);
 		console.log(statistics);
 
 		// Fire the user's success callback.
