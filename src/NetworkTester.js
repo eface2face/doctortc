@@ -17,12 +17,14 @@
 		CONNECT_TIMEOUT: 4000,
 		// Interval for retransmitting the START message (milliseconds).
 		START_MESSAGE_INTERVAL: 100,
-		// Interval for retransmitting the END message (milliseconds).
-		END_MESSAGE_INTERVAL: 100,
 		// Test maximum duration after connection (milliseconds).
 		TEST_TIMEOUT: 8000,
 		// Interval for sending test packets (milliseconds).
 		SENDING_INTERVAL: 20,
+		// Interval for retransmitting the END message (milliseconds).
+		END_MESSAGE_INTERVAL: 100,
+		// Allow delayed packets to arrive after receipt of END packet (milliseconds).
+		AFTER_END_TIMEOUT: 200,
 		// Number of rounds in the test.
 		NUM_PACKETS: 100,
 		// The size of each test packet (bytes).
@@ -55,10 +57,6 @@
 		this.startMessageInterval = C.START_MESSAGE_INTERVAL;
 		this.startMessagePeriodicTimer = null;
 
-		// Timer that limits the time while receiving the END message.
-		this.endMessageInterval = C.END_MESSAGE_INTERVAL;
-		this.endMessagePeriodicTimer = null;
-
 		// Timer that limits the test duration once packets are being sent/received.
 		this.testTimeout = options.testTimeout || C.TEST_TIMEOUT;
 		this.testTimer = null;
@@ -66,6 +64,14 @@
 		// Periodic timer for sending packets in each interval.
 		this.sendingInterval = C.SENDING_INTERVAL;
 		this.sendingPeriodicTimer = null;
+
+		// Timer that limits the time while receiving the END message.
+		this.endMessageInterval = C.END_MESSAGE_INTERVAL;
+		this.endMessagePeriodicTimer = null;
+
+		// Timer that lets delayed packets to arrive after END packet is received.
+		this.afterEndTimeout = options.testTimeout || C.AFTER_END_TIMEOUT;
+		this.afterEndTimer = null;
 
 		// Number of packets to send during the test.
 		this.numPackets = options.numPackets || C.NUM_PACKETS;
@@ -183,9 +189,10 @@
 
 		window.clearTimeout(this.connectTimer);
 		window.clearInterval(this.startMessagePeriodicTimer);
-		window.clearInterval(this.endMessagePeriodicTimer);
 		window.clearTimeout(this.testTimer);
 		window.clearInterval(this.sendingPeriodicTimer);
+		window.clearInterval(this.endMessagePeriodicTimer);
+		window.clearTimeout(this.afterEndTimer);
 
 		// Call the user's errback if error is given.
 		if (errorCode) {
@@ -402,6 +409,8 @@
 	};
 
 	NetworkTester.prototype.onMessage2 = function(event) {
+		var self = this;
+
 		// dc2 must receive packet messages from dc1.
 		if (event.data.byteLength === this.packetSize) {
 			var packet = new Uint16Array(event.data);
@@ -453,9 +462,12 @@
 			window.clearInterval(this.endMessagePeriodicTimer);
 			window.clearTimeout(this.testTimer);
 
-			// Finish the test and get the results.
-			this.endTest();
+			// Let delayed packets to arrive.
+			this.afterEndTimer = window.setTimeout(function() {
+				self.onAfterEndTimeout();
+			}, C.AFTER_END_TIMEOUT);
 		}
+		// Unexpected packet received.
 		else {
 			DoctoRTC.error(CLASS, "onMessage2", "unexpected message received");
 			this.close(ERRORS.INTERNAL_ERROR);
@@ -466,6 +478,13 @@
 		DoctoRTC.debug(CLASS, "onTestTimeout", "test timeout");
 
 		this.close(ERRORS.TEST_TIMEOUT);
+	};
+
+	NetworkTester.prototype.onAfterEndTimeout = function() {
+		DoctoRTC.debug(CLASS, "onAfterEndTimeout");
+
+		// Finish the test and get the results.
+		this.endTest();
 	};
 
 	NetworkTester.prototype.endTest = function() {
