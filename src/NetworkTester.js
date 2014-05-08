@@ -3,16 +3,32 @@
  * @augments  DoctoRTC
  */
 (function(DoctoRTC) {
-	var
-		NetworkTester,
-		CLASS = "NetworkTester",
-		ERRORS = {
-			CONNECTION_TIMEOUT: "CONNECTION TIMEOUT",
-			TEST_TIMEOUT: "TEST TIMEOUT",
-			INTERNAL_ERROR: "INTERNAL ERROR"
-		};
-
-	var sdpConstraints = {
+	var	NetworkTester;
+	var	CLASS = "NetworkTester";
+	var ERRORS = {
+		CONNECTION_TIMEOUT: "CONNECTION TIMEOUT",
+		TEST_TIMEOUT: "TEST TIMEOUT",
+		INTERNAL_ERROR: "INTERNAL ERROR"
+	};
+	var C = {
+		// The DataChannel.maxRetransmitTime value (milliseconds).
+		DATACHANNEL_MAX_RETRANSMIT_TIME: 0,
+		// DataChannel connection timeout (milliseconds).
+		CONNECT_TIMEOUT: 4000,
+		// Interval for retransmitting the START message (milliseconds).
+		START_MESSAGE_INTERVAL: 100,
+		// Interval for retransmitting the END message (milliseconds).
+		END_MESSAGE_INTERVAL: 100,
+		// Test maximum duration after connection (milliseconds).
+		TEST_TIMEOUT: 8000,
+		// Interval for sending test packets (milliseconds).
+		SENDING_INTERVAL: 20,
+		// Number of rounds in the test.
+		NUM_PACKETS: 100,
+		// The size of each test packet (bytes).
+		PACKET_SIZE: 500
+	};
+	var SDP_CONSTRAINS = {
 		mandatory: {
 			// NOTE: We need a fake audio track for Firefox to support DataChannel.
 			// See https://bitbucket.org/ibc_aliax/doctortc.js/issue/1/datachannels-in-firefox-require-audio
@@ -23,6 +39,7 @@
 
 	// Constructor.
 	NetworkTester = function(turnServer, callback, errback, options) {
+		// Callback and errback provided by the user.
 		this.callback = callback;
 		this.errback = errback;
 
@@ -30,20 +47,58 @@
 
 		var self = this;
 
+		// Timer that limits the time while connecting to the TURN server.
+		this.connectTimeout = options.connectTimeout || C.CONNECT_TIMEOUT;
+		this.connectTimer = null;
+
+		// Timer that limits the time while receiving the START message.
+		this.startMessageInterval = C.START_MESSAGE_INTERVAL;
+		this.startMessagePeriodicTimer = null;
+
+		// Timer that limits the time while receiving the END message.
+		this.endMessageInterval = C.END_MESSAGE_INTERVAL;
+		this.endMessagePeriodicTimer = null;
+
+		// Timer that limits the test duration once packets are being sent/received.
+		this.testTimeout = options.testTimeout || C.TEST_TIMEOUT;
+		this.testTimer = null;
+
+		// Periodic timer for sending packets in each interval.
+		this.sendingInterval = C.SENDING_INTERVAL;
+		this.sendingPeriodicTimer = null;
+
+		// Number of packets to send during the test.
+		this.numPackets = options.numPackets || C.NUM_PACKETS;
+
+		// Size (in bytes) of test packets.
+		this.packetSize = options.packetSize || C.PACKET_SIZE;
+
+		// Packet to be sent during the test (first bytes will me modified while sending).
+		// NOTE: This is a typed Array of Uint16 elements, so divide its size by 2 in order
+		// to get this.packetSize bytes.
+		this.packet = new Uint16Array(this.packetSize / 2);
+
+		// An array for holding information about every packet sent.
+		this.packetsInfo = new Array(this.numPackets);
+
+		// Number of packets received out of order.
+		this.outOfOrderReceivedPackets = 0;
+
+		// Test begin time.
+		this.testBeginTime = null;
+
+		// Highest identificator of all the received packets.
+		this.highestReceivedPacketId = -1;
+
+		// Flags set to true when DataChannels get connected.
 		this.dc1Open = false;
 		this.dc2Open = false;
-		this.packet = null;
-		this.packetSize = null;
-		this.packetSenderTimer = null;
-		this.testBeginTime = null;
-		this.testEndTime = null;
-		this.connectTimeout = options.connectTimeout || 4;  // Default 4 seconds.
-		this.connectionTimer = null;
-		this.testTimeout = options.testTimeout || 8;  // Default 8 seconds.
-		this.testTimer = null;
-		this.numPackets = options.numPackets || 200;  // Default 200 packets.
-		this.numPacketsSent = 0;
-		this.numPacketsReceived = 0;
+
+		// Flag set to true when the START message is received.
+		this.startMessageReceived = false;
+
+		// Flag set to true when the END message is received.
+		this.endMessageReceived = false;
 
 		// NOTE: WebRTC states that RTCIceServer MUST contain a "urls" parameter, but Firefox
 		// requires "url" (old way). Fix it.
@@ -60,33 +115,38 @@
 			options.turnServer2.urls = options.turnServer2.url;
 		}
 
+		// Optional TURN server for the second PeerConnection.
 		var turnServer2 = options.turnServer2 || turnServer;
 
 		// PeerConnection options.
 		var pcServers1 = { iceServers: [turnServer] };
 		var	pcServers2 = { iceServers: [turnServer2] };
 
-		// Create two PeerConnections.
+		// PeerConnections.
 		this.pc1 = new DoctoRTC.Adaptor.RTCPeerConnection(pcServers1);
 		this.pc2 = new DoctoRTC.Adaptor.RTCPeerConnection(pcServers2);
 
-		// Set events.
+		// PeerConnections' events.
 		this.pc1.onicecandidate = function(event) { self.onIceCandidate1(event); };
 		this.pc2.onicecandidate = function(event) { self.onIceCandidate2(event); };
 
 		// DataChannel options.
 		var dcOptions = {
-			ordered: true,
+			ordered: false,
 			negotiated: true,
 			id: "DoctoRTC.NetworkTester",
-			maxRetransmitTime: 5000  // TODO
+			maxRetransmitTime: C.DATACHANNEL_MAX_RETRANSMIT_TIME
 		};
 
-		// Create a DataChannel in each PeerConnection.
+		// A DataChannel in each PeerConnection.
 		this.dc1 = this.pc1.createDataChannel("Channel 1", dcOptions);
 		this.dc2 = this.pc2.createDataChannel("Channel 2", dcOptions);
 
-		// Set DataChannel events.
+		// Set "arraybuffer" type.
+		this.dc1.binaryType = "arraybuffer";
+		this.dc2.binaryType = "arraybuffer";
+
+		// DataChannels' events.
 		this.dc1.onopen = function() { self.onOpen1(); };
 		this.dc2.onopen = function() { self.onOpen2(); };
 		this.dc1.onmessage = function(event) { self.onMessage1(event); };
@@ -96,16 +156,42 @@
 		this.pc1.createOffer(
 			function(desc) { self.onCreateOfferSuccess1(desc); },
 			function(error) { self.onCreateOfferError1(error); },
-			sdpConstraints
+			SDP_CONSTRAINS
 		);
 
-		// Create a timeout for the connection establishment.
-		this.connectionTimer = window.setTimeout(function() {
+		// Start the connection timeout.
+		this.connectTimer = window.setTimeout(function() {
 			self.onConnectionTimeout();
-		}, this.connectTimeout * 1000);
+		}, this.connectTimeout);
 	};
 
 	/* Methods. */
+
+	NetworkTester.prototype.close = function(errorCode) {
+		DoctoRTC.debug(CLASS, "close");
+
+		try { this.dc1.close(); } catch(error) {}
+		try { this.dc2.close(); } catch(error) {}
+
+		try { this.pc1.close(); } catch(error) {}
+		try { this.pc2.close(); } catch(error) {}
+
+		this.pc1 = null;
+		this.pc2 = null;
+
+		this.packet = null; // TODO
+
+		window.clearTimeout(this.connectTimer);
+		window.clearInterval(this.startMessagePeriodicTimer);
+		window.clearInterval(this.endMessagePeriodicTimer);
+		window.clearTimeout(this.testTimer);
+		window.clearInterval(this.sendingPeriodicTimer);
+
+		// Call the user's errback if error is given.
+		if (errorCode) {
+			this.errback(errorCode);
+		}
+	};
 
 	NetworkTester.prototype.onCreateOfferSuccess1 = function(desc) {
 		DoctoRTC.debug(CLASS, "onCreateOfferSuccess1", "offer:\n\n" + desc.sdp + "\n");
@@ -115,11 +201,11 @@
 		this.pc1.setLocalDescription(desc);
 		this.pc2.setRemoteDescription(desc);
 
-		// Create the SDP answer in pc2.
+		// Create the SDP answer in PeerConnection 2.
 		this.pc2.createAnswer(
 			function(desc) { self.onCreateAnswerSuccess2(desc); },
 			function(error) { self.onCreateAnswerError2(error); },
-			sdpConstraints
+			SDP_CONSTRAINS
 		);
 	};
 
@@ -169,11 +255,10 @@
 
 		this.dc1Open = true;
 
-		// If both DataChannels are connected start sending data.
+		// If both DataChannels are connected send the START message.
 		if (this.dc2Open) {
-			// Cancel the connection timer.
-			window.clearTimeout(this.connectionTimer);
-			this.startTest();
+			window.clearTimeout(this.connectTimer);
+			this.sendStartMessage();
 		}
 	};
 
@@ -182,11 +267,10 @@
 
 		this.dc2Open = true;
 
-		// If both DataChannels are connected start sending data.
+		// If both DataChannels are connected send the START message.
 		if (this.dc1Open) {
-			// Cancel the connection timer.
-			window.clearTimeout(this.connectionTimer);
-			this.startTest();
+			window.clearTimeout(this.connectTimer);
+			this.sendStartMessage();
 		}
 	};
 
@@ -196,27 +280,54 @@
 		this.close(ERRORS.CONNECTION_TIMEOUT);
 	};
 
-	NetworkTester.prototype.close = function(errorCode) {
-		DoctoRTC.debug(CLASS, "close");
+	NetworkTester.prototype.sendStartMessage = function() {
+		DoctoRTC.debug(CLASS, "sendStartMessage");
 
-		try { this.dc1.close(); } catch(error) {}
-		try { this.dc2.close(); } catch(error) {}
+		var self = this;
 
-		try { this.pc1.close(); } catch(error) {}
-		try { this.pc2.close(); } catch(error) {}
+		// Send the START message from dc2 to dc1 (repeat it as it may be lost).
+		this.startMessagePeriodicTimer = window.setInterval(function() {
+			self.dc2.send("START");
+		}, C.START_MESSAGE_INTERVAL);
 
-		this.pc1 = null;
-		this.pc2 = null;
+		// Run again the connection timer to ensure the "start" message from dc2 to
+		// dc1 arrives.
+		// NOTE: Firefox automatically fires "onopen" event so this is a need.
+		this.connectTimer = window.setTimeout(function() {
+			self.onStartMessageTimeout();
+		}, this.connectTimeout);
+	};
 
-		this.packet = null;
+	NetworkTester.prototype.onStartMessageTimeout = function() {
+		DoctoRTC.error(CLASS, "onStartMessageTimeout", "timeout sending the START message from dc2 to dc1");
 
-		window.clearTimeout(this.connectionTimer);
-		window.clearTimeout(this.packetSenderTimer);
-		window.clearTimeout(this.testTimer);
+		this.close(ERRORS.CONNECTION_TIMEOUT);
+	};
 
-		// Call the user's errback if error is given.
-		if (errorCode) {
-			this.errback(errorCode);
+	NetworkTester.prototype.onMessage1 = function(event) {
+		// dc1 must just receive the START message from dc2.
+		if (event.data === "START") {
+			// Ignore retransmissions.
+			if (this.startMessageReceived === true) {
+				DoctoRTC.debug(CLASS, "onMessage1", "ignoring received START message retransmission");
+				return;
+			}
+
+			DoctoRTC.debug(CLASS, "onMessage1", "START message received");
+
+			// Set the flag to true.
+			this.startMessageReceived = true;
+
+			// Cancel timers.
+			window.clearInterval(this.startMessagePeriodicTimer);
+			window.clearTimeout(this.connectTimer);
+
+			// Start the test.
+			this.startTest();
+		}
+		else {
+			DoctoRTC.error(CLASS, "onMessage1", "unexpected message received");
+			this.close(ERRORS.INTERNAL_ERROR);
 		}
 	};
 
@@ -225,95 +336,125 @@
 
 		var self = this;
 
-		// First send a "start" message from dc2 to dc1.
-		this.dc2.send("start");
-
-		// Run again the connection timer to ensure the "start" message from dc2 to
-		// dc1 arrives.
-		this.connectionTimer = window.setTimeout(function() {
-			self.onStartMessageTimeout();
-		}, this.connectTimeout * 1000);
-	};
-
-	NetworkTester.prototype.onStartMessageTimeout = function() {
-		DoctoRTC.error(CLASS, "onStartMessageTimeout", "timeout sending the 'start' message from dc2 to dc1");
-
-		this.close(ERRORS.CONNECTION_TIMEOUT);
-	};
-
-	NetworkTester.prototype.onMessage1 = function(event) {
-		// dc1 just must receive a "start" message from dc2.
-		if (event.data === "start") {
-			DoctoRTC.debug(CLASS, "onMessage1", "'start' message received");
-
-			// Cancel the timer.
-			window.clearTimeout(this.connectionTimer);
-
-			// Send big data from dc1 to dc2.
-			this.sendPackets();
-		}
-		else {
-			DoctoRTC.error(CLASS, "onMessage1", "unexpected message received");
-			this.close(ERRORS.INTERNAL_ERROR);
-		}
-	};
-
-	NetworkTester.prototype.sendPackets = function() {
-		DoctoRTC.debug(CLASS, "sendPackets");
-
-		var self = this;
-
-		// Create a 1024 bytes string (iterations must be 7 and packet length 8).
-		this.packet = "doctortc";
-		var iterations = 7;
-		for (var i = 0; i < iterations; i++) {
-		  this.packet += this.packet;  // + this.packet;
-		}
-		this.packetSize = this.packet.length;
-
-		DoctoRTC.debug(CLASS, "sendPackets", "packet length: " + this.packetSize + " bytes");
-
+		// Test begins now.
 		this.testBeginTime = new Date();
 
 		// Run the testTimer.
 		this.testTimer = window.setTimeout(function() {
 			self.onTestTimeout();
-		}, this.testTimeout * 1000);
+		}, this.testTimeout);
 
-		this.packetSenderTimer = window.setInterval(function() {
+		// Identificator of the packet being sent.
+		var sendingPacketId = 0;
+
+		// Send packets.
+		this.sendingPeriodicTimer = window.setInterval(function() {
+			// Don't attempt to send  a packet if the sending buffer has data yet.
+			if (self.dc1.bufferedAmount !== 0) {
+				DoctoRTC.debug(CLASS, "startTest", "sending buffer not empty, waiting");
+				return;
+			}
+
+			// Set the sendingPacketId in the first byte of the message.
+			self.packet[0] = sendingPacketId;
+
+			// If we receive an error while sending then wait and repeat.
 			try {
 				self.dc1.send(self.packet);
 			} catch(error) {
-				DoctoRTC.error(CLASS, "sendPackets", "error sending packet " + self.numPacketsSent + ": " + error.message);
+				DoctoRTC.error(CLASS, "startTest", "error sending packet " + sendingPacketId + ": " + error.message);
 				return;
 			}
-			self.numPacketsSent++;
 
-			DoctoRTC.debug(CLASS, "sendPackets", "sent packet " + self.numPacketsSent + "/" + self.numPackets);
-			// DoctoRTC.debug(CLASS, "sendPackets", "send buffer ammount: " + self.dc1.bufferedAmount);
+			// Message sent. Update the array with packets information.
+			self.packetsInfo[sendingPacketId] = {
+				sentTime: new Date() - self.testBeginTime,
+				recvTime: null,
+				elapsedTime: null
+			};
 
-			if (self.numPacketsSent === self.numPackets) {
-				DoctoRTC.debug(CLASS, "sendPackets", "all the packets sent");
+			DoctoRTC.debug(CLASS, "startTest", "sent packet " + sendingPacketId + "/" + self.numPackets);
 
-				window.clearTimeout(self.packetSenderTimer);
+			// Update sendingPacketId.
+			sendingPacketId++;
+
+			if (sendingPacketId === self.numPackets) {
+				DoctoRTC.debug(CLASS, "startTest", "all the packets sent");
+
+				// Stop the sending timer.
+				window.clearTimeout(self.sendingPeriodicTimer);
+
+				// Send the END message.
+				self.sendEndMessage();
 			}
-		}, 0);
+		}, this.sendingInterval);
+	};
+
+	NetworkTester.prototype.sendEndMessage = function() {
+		DoctoRTC.debug(CLASS, "sendEndMessage");
+
+		var self = this;
+
+		// Send the START message from dc2 to dc1 (repeat it as it may be lost).
+		this.endMessagePeriodicTimer = window.setInterval(function() {
+			self.dc1.send("END");
+		}, C.END_MESSAGE_INTERVAL);
 	};
 
 	NetworkTester.prototype.onMessage2 = function(event) {
-		// dc2 just must receive packet messages from dc1.
-		if (event.data.length === this.packetSize) {
-			this.numPacketsReceived++;
+		// dc2 must receive packet messages from dc1.
+		if (event.data.byteLength === this.packetSize) {
+			var packet = new Uint16Array(event.data);
+			var receivedPacketId = packet[0];
 
-			DoctoRTC.debug(CLASS, "onMessage2", "received packet " + this.numPacketsReceived + "/" + this.numPackets);
+			DoctoRTC.debug(CLASS, "onMessage2", "received packet " + receivedPacketId);
 
-			if (this.numPacketsReceived === this.numPackets) {
-				DoctoRTC.debug(CLASS, "onMessage2", "all the packets received");
-
-				this.testEndTime = new Date();
-				this.close();
-				this.calculateResult();
+			// Ignore malformed packets which a identificator bigger than the Array size.
+			if (receivedPacketId >= this.packetsInfo.length) {
+				DoctoRTC.error(CLASS, "onMessage2", "malformed packet with unknown id " + receivedPacketId);
+				this.close(C.INTERNAL_ERROR);
+				return;
 			}
+
+			// Ignore retransmissions (NOTE: it MUST NOT happen in DataChannels).
+			if (this.packetsInfo[receivedPacketId].recvTime) {
+				DoctoRTC.warn(CLASS, "onMessage2", "retransmission received (MUST NOT happen in DataChannels!) for packet " + receivedPacketId);
+				return;
+			}
+
+			// Check if the packet comes out of order.
+			if (receivedPacketId > this.highestReceivedPacketId) {
+				this.highestReceivedPacketId = receivedPacketId;
+			}
+			else {
+				DoctoRTC.debug(CLASS, "onMessage2", "packet " + receivedPacketId + " received our of order");
+				this.outOfOrderReceivedPackets++;
+			}
+
+			// Update the array with packets information.
+			var packetInfo = this.packetsInfo[receivedPacketId];
+			packetInfo.recvTime = new Date() - this.testBeginTime;
+			packetInfo.elapsedTime = packetInfo.recvTime - packetInfo.sentTime;
+		}
+		// And must also receive END messages.
+		else if (event.data === "END") {
+			// Ignore retransmissions.
+			if (this.endMessageReceived === true) {
+				DoctoRTC.debug(CLASS, "onMessage2", "ignoring received END message retransmission");
+				return;
+			}
+
+			DoctoRTC.debug(CLASS, "onMessage2", "END message received");
+
+			// Set the flag to true.
+			this.endMessageReceived = true;
+
+			// Cancel timers.
+			window.clearInterval(this.endMessagePeriodicTimer);
+			window.clearTimeout(this.testTimer);
+
+			// Finish the test and get the results.
+			this.endTest();
 		}
 		else {
 			DoctoRTC.error(CLASS, "onMessage2", "unexpected message received");
@@ -322,28 +463,43 @@
 	};
 
 	NetworkTester.prototype.onTestTimeout = function() {
-		DoctoRTC.error(CLASS, "onTestTimeout", "test timeout");
+		DoctoRTC.debug(CLASS, "onTestTimeout", "test timeout");
 
 		this.close(ERRORS.TEST_TIMEOUT);
 	};
 
-	NetworkTester.prototype.calculateResult = function() {
-		var elapsedTime = this.testEndTime - this.testBeginTime;  // millisesconds
-		var packetSize = this.packetSize;  // Bytes
-		// Add DTLS header size (23 bytes): TODO
-		packetSize += 23;
-		// Add SCTP header size (12 Bytes) + SCTP chunk fields (4 Bytes).
-		packetSize += 16;
-		var totalSize = packetSize * this.numPackets;  // Bytes.
-		var kilobits = (totalSize * 8) / 1024;
-		var seconds = elapsedTime / 1000;
-		// Divide the num of sent kilobits by elapsed seconds, and multiply by two (up & down).
-		var bandwidth = window.Math.round( (kilobits / seconds) * 2);  // kbps.
+	NetworkTester.prototype.endTest = function() {
+		DoctoRTC.error(CLASS, "endTest");
 
-		DoctoRTC.debug(CLASS, "calculateResult", "[sent: " + totalSize + " bytes, received: " + totalSize + " bytes, elapsed: " + elapsedTime + " ms, bandwidth: " + bandwidth + " kbps]");
+		// Fill the statistics Object.
+		var statistics = {};
+
+		// Test duration.
+		statistics.testDuration = new Date() - this.testBeginTime;
+
+		// Packet size.
+		statistics.packetSize = this.packetSize;
+
+		// Number of packets sent.
+		statistics.packetsSent = this.numPackets;
+
+		// Number of packets received out of order.
+		statistics.outOfOrder = this.outOfOrderReceivedPackets;
+
+		// Packet loss.
+		var packetLoss = 0;
+		for(var i = this.packetsInfo.length - 1; i >= 0; i--) {
+			if (! this.packetsInfo[i].recvTime) {
+				packetLoss++;
+			}
+		}
+		statistics.packetLost = packetLoss;
+
+		// TMP
+		console.log(statistics);
 
 		// Fire the user's success callback.
-		this.callback(bandwidth);
+	 	this.callback(this.packetsInfo);
 	};
 
 	DoctoRTC.NetworkTester = NetworkTester;

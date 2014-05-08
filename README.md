@@ -51,31 +51,44 @@ Include `doctortc-X.Y.Z.min.js` (or any of the resulting files under `dist/`) in
 
 Checks WebRTC support in the current browser.
 
-* @return:  *true* if WebRTC is supported, *false* otherwise.
+* return:  *true* if WebRTC is supported, *false* otherwise.
 
 
 ### DoctoRTC.setVerbose(verbose)
 
 Enables verbose logging (non intended for production sites). By default not set.
 
-* @param `verbose`: `true` for verbose logging, `false` for non verbose logging.
+* param `verbose`: `true` for verbose logging, `false` for non verbose logging.
 
 
 ### DoctoRTC.testNetwork(turnServer, callback, errback, options)
 
 Checks network connectivity by connecting to a TURN server and performs bandwitdh calculation by sending and receiving packets via WebRTC DataChannels.
 
-* @param `turnServer`: An Object with the TURN server information. This parameter matches the [`RTCIceServer`](http://www.w3.org/TR/webrtc/#idl-def-RTCIceServer) Object in WebRTC API.
-* @param `callback`: User provided function that is called upon test success. The function is called with a single `bandwidth` argument whose value is the measured speed of the connection in kilobits per second (kbps).
-* @param: `errback`: User provided function that is called upon test failure. The function is called with a single `error` argument whose value is one of the following strings:
+* param `turnServer`: An Object with the TURN server information. This parameter matches the [`RTCIceServer`](http://www.w3.org/TR/webrtc/#idl-def-RTCIceServer) Object in WebRTC API.
+
+* param `callback`: User provided function that is called upon test success. The function is called with a single `bandwidth` argument whose value is the measured speed of the connection in kilobits per second (kbps).
+
+* param: `errback`: User provided function that is called upon test failure. The function is called with a single `error` argument whose value is one of the following strings:
+
     * `CONNECTION TIMEOUT`: The connection to the TURN server failed due to timeout (note that, as per current WebRTC specs, if the TURN crendentials are wrong the application cannot realize of it so timeout will raise).
+
     * `TEST_TIMEOUT`: Connection to the TURN server succeeded but the test could not complete in time.
+
     * `INTERNAL_ERROR`: Unknown or unexpected error (may be caused due to the browser's WebRTC stack, issues in the TURN server...).
+
 * @param `options`: An Object with optional extra parameters. Available parameters in this Object are:
-    * `connectTimeout`: An integer representing the maximum duration while connecting to the TURN server (in seconds). Default value is 4.
-    * `testTimeout`: An integer representing the maximum duration while sending packets over the DataChannel (in seconds). Default value is 8.
-    * `numPackets`: An integer representing the ammount of packets to be sent on the test. Default value is 200.
+
+    * `connectTimeout`: An integer representing the maximum duration while connecting to the TURN server (in milliseconds). Default value is 4000.
+
+    * `testTimeout`: An integer representing the maximum duration while sending packets over the DataChannel (in milliseconds). Default value is 8000.
+
+    * `numPackets`: Number of packets to be sent during the test. Default value is 100;
+
+    * `packetSize`: Size of packets to be sent during the test (in bytes). Default value is 500 bytes.
+
     * `turnServer2`: Separate TURN server information for the receiver DataChannel. This allows, for example, testing UDP in upstream and TCP in downstream. Default value is null (so main `turnServer` is also used).
+
 
 #### Usage example
 
@@ -98,14 +111,14 @@ DoctoRTC.testNetwork(
     // options
     {
         connectTimeout: 2000,
-        testTimeout: 4000,
+        testTimeout: 5000,
         numPackets: 100,
+        packetSize: 250,
         turnServer2: {
             urls: "turn:turn.domain.com:1234?transport=tcp",
             username: "alice",
             credential: "1234"
-        },
-        numPackets: 100
+        }
     }
 );
 ```
