@@ -2,4 +2,6 @@ node_modules/
 dist/
 doctortc.js.sublime*
 NOTES/
+test/
+upload.sh
 .DS_Store
