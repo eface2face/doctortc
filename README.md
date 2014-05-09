@@ -83,6 +83,7 @@ The success callback is called with two arguments `packetsInfo` and `statistics`
     * `packetsSent`: Number of packets sent during the test.
     * `outOfOrder`: Number of packets arriving out of order.
     * `packetLoss`: Number of packets that were sent but have not been received.
+    * `avgElapsedTime`: Average elapsed time between a packet is sent and received (in milliseconds).
 
 
 #### Usage example
