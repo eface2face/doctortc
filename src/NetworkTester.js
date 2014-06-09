@@ -366,11 +366,6 @@
 
 		var self = this;
 
-		// Test begins now.
-		// TODO: Must be set when the first packet is sent (rather than before). Otherwise we are loosing
-		// the initial sending interval.
-		this.testBeginTime = new Date();
-
 		// Run the testTimer.
 		this.testTimer = window.setTimeout(function() {
 			self.onTestTimeout();
@@ -443,6 +438,11 @@
 			DoctoRTC.error(CLASS, "sendTestPacket", "error sending packet with id " + this.sendingPacketId + ": " + error.message);
 			// Return false so the caller will not wait to send again.
 			return false;
+		}
+
+		// Test begins now (if this is the first packet).
+		if (this.sendingPacketId === 0) {
+			this.testBeginTime = new Date();
 		}
 
 		// Message sent. Update the array with packets information.
