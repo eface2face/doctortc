@@ -26,7 +26,9 @@
 		// Number of rounds in the test.
 		NUM_PACKETS: 100,
 		// The size of each test packet (bytes).
-		PACKET_SIZE: 500
+		PACKET_SIZE: 500,
+		// Number of pre-test packets to send before starting the real test.
+		NUM_PRE_TEST_PACKETS: 75
 	};
 	var SDP_CONSTRAINS = {
 		mandatory: {
@@ -67,6 +69,9 @@
 		this.afterEndTimeout = options.testTimeout || C.AFTER_END_TIMEOUT;
 		this.afterEndTimer = null;
 
+		// Optional callback called for each received packet.
+		this.onPacketReceived = options.onPacketReceived;
+
 		// Number of packets to send during the test.
 		this.numPackets = options.numPackets || C.NUM_PACKETS;
 
@@ -76,7 +81,7 @@
 		// Packet to be sent during the test (first bytes will me modified while sending).
 		// NOTE: This is a typed Array of Uint16 elements, so divide its size by 2 in order
 		// to get this.packetSize bytes.
-		this.packet = new Uint16Array(this.packetSize / 2);
+		this.packet = new Int16Array(this.packetSize / 2);
 
 		// An array for holding information about every packet sent.
 		this.packetsInfo = new Array(this.numPackets);
@@ -129,7 +134,8 @@
 
 		// DataChannel options.
 		var dcOptions = {
-			ordered: true,
+			ordered: false,
+			maxRetransmits: 0,
 			negotiated: true,
 			id: "DoctoRTC.NetworkTester"
 		};
@@ -156,7 +162,6 @@
 		);
 
 		// Start the connection timeout.
-		console.warn(this.connectTimeout);
 		this.connectTimer = window.setTimeout(function() {
 			self.onConnectionTimeout();
 		}, this.connectTimeout);
@@ -263,8 +268,8 @@
 			// Cancel timer.
 			window.clearTimeout(this.connectTimer);
 
-			// Start the test.
-			this.startTest();
+			// Send the pre-test packets.
+			this.preTest();
 		}
 	};
 
@@ -278,8 +283,8 @@
 			// Cancel timer.
 			window.clearTimeout(this.connectTimer);
 
-			// Start the test.
-			this.startTest();
+			// Send the pre-test packets.
+			this.preTest();
 		}
 	};
 
@@ -293,6 +298,42 @@
 		// dc1 MUST NOT receive any messages from dc2.
 		DoctoRTC.error(CLASS, "onMessage1", "unexpected message received");
 		this.close(ERRORS.INTERNAL_ERROR);
+	};
+
+	NetworkTester.prototype.preTest = function() {
+		DoctoRTC.debug(CLASS, "preTest");
+
+		var self = this;
+		var numPacketsSent = 0;
+
+		// Send pre-test packets.
+		var preTestPeriodicTimer = window.setInterval(function() {
+			if (numPacketsSent === C.NUM_PRE_TEST_PACKETS) {
+				DoctoRTC.debug(CLASS, "preTest", "all the pre-test packets sent, starting the test");
+				window.clearInterval(preTestPeriodicTimer);
+				self.startTest();
+			}
+
+			numPacketsSent++;
+
+			// Don't attempt to send  a packet if the sending buffer has data yet.
+			if (self.dc1.bufferedAmount !== 0) {
+				DoctoRTC.debug(CLASS, "preTest", "sending buffer not empty, waiting");
+				return;
+			}
+
+			// Set -1 in the first byte of the message.
+			self.packet[0] = -1;
+
+			// If we receive an error while sending then ignore it.
+			try {
+				self.dc1.send(self.packet);
+				DoctoRTC.debug(CLASS, "preTest", "pre-test packet " + numPacketsSent + "sent");
+			} catch(error) {
+				DoctoRTC.error(CLASS, "preTest", "error sending pre-test packet: " + error.message);
+				return;
+			}
+		}, this.sendingInterval);
 	};
 
 	NetworkTester.prototype.startTest = function() {
@@ -326,7 +367,7 @@
 			try {
 				self.dc1.send(self.packet);
 			} catch(error) {
-				DoctoRTC.error(CLASS, "startTest", "error sending packet " + sendingPacketId + ": " + error.message);
+				DoctoRTC.error(CLASS, "startTest", "error sending packet with id " + sendingPacketId + ": " + error.message);
 				return;
 			}
 
@@ -337,7 +378,7 @@
 				elapsedTime: null
 			};
 
-			DoctoRTC.debug(CLASS, "startTest", "sent packet " + sendingPacketId + "/" + self.numPackets);
+			DoctoRTC.debug(CLASS, "startTest", "sent packet with id " + sendingPacketId + "(" + (sendingPacketId + 1) + "/" + self.numPackets);
 
 			// Update sendingPacketId.
 			sendingPacketId++;
@@ -370,12 +411,18 @@
 
 		// dc2 must receive packet messages from dc1.
 		if (event.data.byteLength === this.packetSize) {
-			var packet = new Uint16Array(event.data);
+			var packet = new Int16Array(event.data);
 			var receivedPacketId = packet[0];
 
-			DoctoRTC.debug(CLASS, "onMessage2", "received packet " + receivedPacketId);
+			// Ignore pre-test packets.
+			if (receivedPacketId === -1) {
+				DoctoRTC.debug(CLASS, "onMessage2", "ignoring pre-test received packet");
+				return;
+			}
 
-			// Ignore malformed packets which a identificator bigger than the Array size.
+			DoctoRTC.debug(CLASS, "onMessage2", "received packet with id " + receivedPacketId);
+
+			// Ignore malformed packets which an identificator bigger than the Array size.
 			if (receivedPacketId >= this.packetsInfo.length) {
 				DoctoRTC.error(CLASS, "onMessage2", "malformed packet with unknown id " + receivedPacketId);
 				this.close(C.INTERNAL_ERROR);
@@ -401,6 +448,11 @@
 			var packetInfo = this.packetsInfo[receivedPacketId];
 			packetInfo.recvTime = new Date() - this.testBeginTime;
 			packetInfo.elapsedTime = packetInfo.recvTime - packetInfo.sentTime;
+
+			// Call the user provided callback.
+			if (this.onPacketReceived) {
+			 	this.onPacketReceived((receivedPacketId + 1), this.numPackets);
+			}
 		}
 		// And must also receive END messages.
 		else if (event.data === "END") {
@@ -460,8 +512,8 @@
 		// Number of packets sent.
 		statistics.packetsSent = this.numPackets;
 
-		// Number of packets received out of order.
-		statistics.outOfOrder = this.outOfOrderReceivedPackets;
+		// Percentage of packets received out of order.
+		statistics.outOfOrder = (this.outOfOrderReceivedPackets / statistics.packetsSent).toFixed(5) * 100;
 
 		// Packet loss and average elapsed time.
 		var packetLoss = 0;
@@ -477,8 +529,8 @@
 				sumElapsedTimes += ( packetInfo.recvTime - packetInfo.sentTime );
 			}
 		}
-		statistics.packetLoss = packetLoss;
-		statistics.avgElapsedTime = sumElapsedTimes / ( this.packetsInfo.length - packetLoss );
+		statistics.packetLoss = (packetLoss / statistics.packetsSent).toFixed(5) * 100;
+		statistics.avgElapsedTime = (sumElapsedTimes / (statistics.packetsSent - packetLoss)).toFixed(3);
 
 		// Fire the user's success callback.
 	 	this.callback(this.packetsInfo, statistics);

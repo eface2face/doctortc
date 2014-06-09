@@ -64,9 +64,12 @@ Checks network connectivity by connecting to a TURN server and performs bandwitd
 * param `options`: An Object with optional extra parameters. Available parameters in this Object are:
     * `connectTimeout`: An integer representing the maximum duration while connecting to the TURN server (in milliseconds). Default value is 4000.
     * `testTimeout`: An integer representing the maximum duration while sending packets over the DataChannel (in milliseconds). Default value is 8000.
-    * `numPackets`: Number of packets to be sent during the test. Default value is 100;
+    * `numPackets`: Number of packets to be sent during the test. Default value is 200;
     * `packetSize`: Size of packets to be sent during the test (in bytes). Default value is 500 bytes.
     * `turnServer2`: Separate TURN server information for the receiver DataChannel. This allows, for example, testing UDP in upstream and TCP in downstream. Default value is null (so main `turnServer` is also used).
+    * `onPacketReceived`: A callback function that is called for each received valid packet. The function is called with two arguments:
+        * `numPacketsReceived`: The number of received packets.
+        * `totalPackets`: The number of packets that should be received in total.
 
 
 #### callback
@@ -81,8 +84,8 @@ The success callback is called with two arguments `packetsInfo` and `statistics`
     * `testDuration`: The duration of the test (in milliseconds).
     * `packetSize`: The size (in bytes) of each packet.
     * `packetsSent`: Number of packets sent during the test.
-    * `outOfOrder`: Number of packets arriving out of order.
-    * `packetLoss`: Number of packets that were sent but have not been received.
+    * `outOfOrder`: Percentage of packets arriving of order.
+    * `packetLoss`: Percentage of lost packets (those that were sent but have not been received).
     * `avgElapsedTime`: Average elapsed time between a packet is sent and received (in milliseconds).
 
 
