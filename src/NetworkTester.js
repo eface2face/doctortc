@@ -58,7 +58,7 @@
 		this.testTimer = null;
 
 		// Periodic timer for sending packets in each interval.
-		this.sendingInterval = C.SENDING_INTERVAL;
+		this.sendingInterval = options.sendingInterval || C.SENDING_INTERVAL;
 		this.sendingPeriodicTimer = null;
 
 		// Timer that limits the time while receiving the END message.
@@ -75,12 +75,25 @@
 		// Number of packets to send during the test.
 		this.numPackets = options.numPackets || C.NUM_PACKETS;
 
+		// Number of pre-test packets to send before starting the real test.
+		if (options.numPreTestPackets === 0) {
+			this.numPreTestPackets = 0;
+		}
+		else {
+			this.numPreTestPackets = options.numPreTestPackets || C.NUM_PRE_TEST_PACKETS;
+		}
+
 		// Size (in bytes) of test packets.
 		this.packetSize = options.packetSize || C.PACKET_SIZE;
+		// Ensure it is even.
+		if (this.packetSize % 2 !== 0) {
+			this.packetSize++;
+		}
 
 		// Packet to be sent during the test (first bytes will me modified while sending).
-		// NOTE: This is a typed Array of Uint16 elements, so divide its size by 2 in order
+		// NOTE: This is a typed Array of Int16 elements, so divide its size by 2 in order
 		// to get this.packetSize bytes.
+		// TODO: Maybe we could here substract the size of SCTP and DTLS headers...
 		this.packet = new Int16Array(this.packetSize / 2);
 
 		// An array for holding information about every packet sent.
@@ -308,13 +321,11 @@
 
 		// Send pre-test packets.
 		var preTestPeriodicTimer = window.setInterval(function() {
-			if (numPacketsSent === C.NUM_PRE_TEST_PACKETS) {
+			if (numPacketsSent === self.numPreTestPackets) {
 				DoctoRTC.debug(CLASS, "preTest", "all the pre-test packets sent, starting the test");
 				window.clearInterval(preTestPeriodicTimer);
 				self.startTest();
 			}
-
-			numPacketsSent++;
 
 			// Don't attempt to send  a packet if the sending buffer has data yet.
 			if (self.dc1.bufferedAmount !== 0) {
@@ -322,13 +333,15 @@
 				return;
 			}
 
+			numPacketsSent++;
+
 			// Set -1 in the first byte of the message.
 			self.packet[0] = -1;
 
 			// If we receive an error while sending then ignore it.
 			try {
 				self.dc1.send(self.packet);
-				DoctoRTC.debug(CLASS, "preTest", "pre-test packet " + numPacketsSent + "sent");
+				DoctoRTC.debug(CLASS, "preTest", "pre-test packet " + numPacketsSent + " sent");
 			} catch(error) {
 				DoctoRTC.error(CLASS, "preTest", "error sending pre-test packet: " + error.message);
 				return;
@@ -356,7 +369,7 @@
 		this.sendingPeriodicTimer = window.setInterval(function() {
 			// Don't attempt to send  a packet if the sending buffer has data yet.
 			if (self.dc1.bufferedAmount !== 0) {
-				DoctoRTC.debug(CLASS, "startTest", "sending buffer not empty, waiting");
+				DoctoRTC.warn(CLASS, "startTest", "sending buffer not empty, waiting another interval round");
 				return;
 			}
 
@@ -503,34 +516,47 @@
 		// Fill the statistics Object.
 		var statistics = {};
 
-		// Test duration.
-		statistics.testDuration = new Date() - this.testBeginTime;
-
-		// Packet size.
-		statistics.packetSize = this.packetSize;
+		// Test duration (milliseconds).
+		statistics.testDuration = (new Date() - this.testBeginTime).toFixed(3);
 
 		// Number of packets sent.
 		statistics.packetsSent = this.numPackets;
 
+		// Packet size (Bytes).
+		statistics.packetSize = this.packetSize;
+
+		// Packet size (Bytes).
+		statistics.sendingInterval = this.sendingInterval;
+
 		// Percentage of packets received out of order.
 		statistics.outOfOrder = (this.outOfOrderReceivedPackets / statistics.packetsSent).toFixed(5) * 100;
 
-		// Packet loss and average elapsed time.
-		var packetLoss = 0;
+		// Packet loss and RTT.
+		var lostPackets = 0;
 		var sumElapsedTimes = 0;
 
 		for(var i = this.packetsInfo.length - 1; i >= 0; i--) {
 			var packetInfo = this.packetsInfo[i];
 
 			if (! packetInfo.recvTime) {
-				packetLoss++;
+				lostPackets++;
 			}
 			else {
 				sumElapsedTimes += ( packetInfo.recvTime - packetInfo.sentTime );
 			}
 		}
-		statistics.packetLoss = (packetLoss / statistics.packetsSent).toFixed(5) * 100;
-		statistics.avgElapsedTime = (sumElapsedTimes / (statistics.packetsSent - packetLoss)).toFixed(3);
+		statistics.packetLoss = (lostPackets / statistics.packetsSent).toFixed(5) * 100;
+		statistics.RTT = (sumElapsedTimes / (statistics.packetsSent - lostPackets)).toFixed(3);
+
+		// Bandwidth (kbit/s):
+		// - bandwidth_duration = (time_recv_last_packet - time_sent_first_packet) - RTT/2 (s)
+		// - time_recv_last_packet - time_sent_first_packet = statistics.testDuration (ms)
+		// - packetSize (Bytes)
+		// - 1 Byte == 8 bits
+		// - 1 kbit == 1000 bits
+		var bandwidth_kbits = (statistics.packetSize * 8 / 1000) * statistics.packetsSent;
+		var bandwidth_duration = (statistics.testDuration / 1000) - ((statistics.RTT / 1000) / 2);
+		statistics.bandwidth = (bandwidth_kbits / bandwidth_duration).toFixed(2);
 
 		// Fire the user's success callback.
 	 	this.callback(this.packetsInfo, statistics);

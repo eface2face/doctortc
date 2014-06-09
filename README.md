@@ -65,7 +65,9 @@ Checks network connectivity by connecting to a TURN server and performs bandwitd
     * `connectTimeout`: An integer representing the maximum duration while connecting to the TURN server (in milliseconds). Default value is 4000.
     * `testTimeout`: An integer representing the maximum duration while sending packets over the DataChannel (in milliseconds). Default value is 8000.
     * `numPackets`: Number of packets to be sent during the test. Default value is 200;
+    * `numPreTestPackets`: Number of packets to be sent before starting the real test (useful to avoid wrong RT results in the initial transmission). Default value is 75;
     * `packetSize`: Size of packets to be sent during the test (in bytes). Default value is 500 bytes.
+    * `sendingInterval`: Interval of packets sending (in ms). Default value is 20 ms.
     * `turnServer2`: Separate TURN server information for the receiver DataChannel. This allows, for example, testing UDP in upstream and TCP in downstream. Default value is null (so main `turnServer` is also used).
     * `onPacketReceived`: A callback function that is called for each received valid packet. The function is called with two arguments:
         * `numPacketsReceived`: The number of received packets.
@@ -82,11 +84,13 @@ The success callback is called with two arguments `packetsInfo` and `statistics`
     * `elapsedTime`: The elapsed time (in milliseconds) between this packet was sent and received.
 * `statistics`: An Object with some statistics about the test. Keys in the Object are:
     * `testDuration`: The duration of the test (in milliseconds).
-    * `packetSize`: The size (in bytes) of each packet.
     * `packetsSent`: Number of packets sent during the test.
+    * `packetSize`: The size (in bytes) of each packet.
+    * `sendingInterval`: Interval of packets sending (in milliseconds).
     * `outOfOrder`: Percentage of packets arriving of order.
     * `packetLoss`: Percentage of lost packets (those that were sent but have not been received).
-    * `avgElapsedTime`: Average elapsed time between a packet is sent and received (in milliseconds).
+    * `RTT`: Average elapsed time between a packet is sent and received (in milliseconds).
+    * `bandwidth`: Rate of data transferred (in kbit/s).
 
 
 #### Usage example
