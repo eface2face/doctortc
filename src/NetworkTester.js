@@ -601,20 +601,15 @@
 		statistics.packetLoss = (lostPackets / statistics.packetsSent).toFixed(5) * 100;
 		statistics.RTT = (sumElapsedTimes / (statistics.packetsSent - lostPackets)).toFixed(3);
 
-		// Bandwidth (kbit/s):
-		// - bandwidth_duration = (time_recv_last_packet - time_sent_first_packet) - RTT/2 (s)
-		// - time_recv_last_packet - time_sent_first_packet = statistics.testDuration (ms)
-		// - packetSize (Bytes)
-		// - 1 Byte == 8 bits
-		// - 1 kbit == 1000 bits
-		var bandwidth_kbits = (statistics.packetSize * 8 / 1000) * statistics.packetsSent;
+		// Bandwidth (kbit/s).
+		var bandwidth_kbits = (statistics.packetSize * 8 / 1000) * (statistics.packetsSent - lostPackets);
 		var bandwidth_duration = (statistics.testDuration / 1000) - ((statistics.RTT / 1000) / 2);
 		statistics.bandwidth = (bandwidth_kbits / bandwidth_duration).toFixed(2);
 
-		// Optimal test duration.
+		// Optimal test duration (ms).
 		statistics.optimalTestDuration = (statistics.packetsSent * statistics.sendingInterval / 1000).toFixed(3);
 
-		// Optimal bandwidth (kbit/s), the optimal value considering how long DataChannel.send() blocks.
+		// Optimal bandwidth (kbit/s).
 		statistics.optimalBandwidth = (((statistics.packetSize * 8 / 1000) * statistics.packetsSent) / statistics.optimalTestDuration).toFixed(2);
 
 		// Fire the user's success callback.
