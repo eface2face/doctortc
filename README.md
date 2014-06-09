@@ -91,6 +91,8 @@ The success callback is called with two arguments `packetsInfo` and `statistics`
     * `packetLoss`: Percentage of lost packets (those that were sent but have not been received).
     * `RTT`: Average elapsed time between a packet is sent and received (in milliseconds).
     * `bandwidth`: Rate of data transferred (in kbit/s).
+    * `optimalTestDuration`: The optimal duration of the test (in milliseconds).
+    * `optimalBandwidth`: The optimal bandwidth (in kbit/s).
 
 
 #### Usage example

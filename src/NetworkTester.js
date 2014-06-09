@@ -57,9 +57,18 @@
 		this.testTimeout = options.testTimeout || C.TEST_TIMEOUT;
 		this.testTimer = null;
 
-		// Periodic timer for sending packets in each interval.
-		this.sendingInterval = options.sendingInterval || C.SENDING_INTERVAL;
-		this.sendingPeriodicTimer = null;
+		// Interval for sending packets.
+		if (options.sendingInterval === 0) {
+			this.sendingInterval = 0;
+		}
+		else {
+			this.sendingInterval = options.sendingInterval || C.SENDING_INTERVAL;
+		}
+		this.sendingTimer = null;
+
+		// Timer for next packet sending (may change for each one if DataChannel.send()
+		// blocks). Initially zero not to delay the first packet.
+		this.sendingTimeout = 0;
 
 		// Timer that limits the time while receiving the END message.
 		this.endMessageInterval = C.END_MESSAGE_INTERVAL;
@@ -98,6 +107,9 @@
 
 		// An array for holding information about every packet sent.
 		this.packetsInfo = new Array(this.numPackets);
+
+		// Identificator of the packet being sent.
+		this.sendingPacketId = 0;
 
 		// Number of packets received out of order.
 		this.outOfOrderReceivedPackets = 0;
@@ -198,7 +210,7 @@
 
 		window.clearTimeout(this.connectTimer);
 		window.clearTimeout(this.testTimer);
-		window.clearInterval(this.sendingPeriodicTimer);
+		window.clearTimeout(this.sendingTimer);
 		window.clearInterval(this.endMessagePeriodicTimer);
 		window.clearTimeout(this.afterEndTimer);
 
@@ -355,6 +367,8 @@
 		var self = this;
 
 		// Test begins now.
+		// TODO: Must be set when the first packet is sent (rather than before). Otherwise we are loosing
+		// the initial sending interval.
 		this.testBeginTime = new Date();
 
 		// Run the testTimer.
@@ -362,50 +376,89 @@
 			self.onTestTimeout();
 		}, this.testTimeout);
 
-		// Identificator of the packet being sent.
-		var sendingPacketId = 0;
+		// Send all the packets.
+		this.sendTestPackets();
+	};
 
-		// Send packets.
-		this.sendingPeriodicTimer = window.setInterval(function() {
-			// Don't attempt to send  a packet if the sending buffer has data yet.
-			if (self.dc1.bufferedAmount !== 0) {
-				DoctoRTC.warn(CLASS, "startTest", "sending buffer not empty, waiting another interval round");
-				return;
+	NetworkTester.prototype.sendTestPackets = function() {
+		DoctoRTC.debug(CLASS, "sendTestPackets");
+
+		var self = this;
+
+		this.sendingTimer = window.setTimeout(function() {
+			// Calculate how send takes to update next sending interval.
+			var sendBeginTime = new Date();
+
+			var rc = self.sendTestPacket();
+
+			var sendTime = new Date() - sendBeginTime;
+			if (sendTime > 1) {
+				DoctoRTC.warn(CLASS, "sendTestPackets", "DataChannel.send() took " + sendTime + ' ms');
 			}
 
-			// Set the sendingPacketId in the first byte of the message.
-			self.packet[0] = sendingPacketId;
-
-			// If we receive an error while sending then wait and repeat.
-			try {
-				self.dc1.send(self.packet);
-			} catch(error) {
-				DoctoRTC.error(CLASS, "startTest", "error sending packet with id " + sendingPacketId + ": " + error.message);
-				return;
-			}
-
-			// Message sent. Update the array with packets information.
-			self.packetsInfo[sendingPacketId] = {
-				sentTime: new Date() - self.testBeginTime,
-				recvTime: null,
-				elapsedTime: null
-			};
-
-			DoctoRTC.debug(CLASS, "startTest", "sent packet with id " + sendingPacketId + "(" + (sendingPacketId + 1) + "/" + self.numPackets);
-
-			// Update sendingPacketId.
-			sendingPacketId++;
-
-			if (sendingPacketId === self.numPackets) {
-				DoctoRTC.debug(CLASS, "startTest", "all the packets sent");
-
-				// Stop the sending timer.
-				window.clearTimeout(self.sendingPeriodicTimer);
+			// Finished?
+			if (self.sendingPacketId === self.numPackets) {
+				DoctoRTC.debug(CLASS, "sendTestPackets", "all the packets sent");
 
 				// Send the END message.
 				self.sendEndMessage();
 			}
-		}, this.sendingInterval);
+			// Otherwise re-calculate next packet sending.
+			else {
+				// If sendTestPacket() returned true we must re-calculate when to send next packet.
+				if (rc) {
+					self.sendingTimeout = self.sendingInterval - sendTime;
+					if (self.sendingTimeout < 1) {
+						self.sendingTimeout = 1;
+					}
+				}
+				// If sendTestPacket() returned false then the packet was not sent so try again now.
+				else {
+					self.sendingTimeout = 1;
+				}
+
+				// Continue sending packets.
+				self.sendTestPackets();
+			}
+		}, this.sendingTimeout);
+	};
+
+	NetworkTester.prototype.sendTestPacket = function() {
+		DoctoRTC.debug(CLASS, "sendTestPacket", "sending packet with id " + this.sendingPacketId);
+
+		// Don't attempt to send a packet if the sending buffer has data yet.
+		if (this.dc1.bufferedAmount !== 0) {
+			DoctoRTC.warn(CLASS, "sendTestPacket", "sending buffer not empty");
+			// Return false so the caller will not wait to send again.
+			return false;
+		}
+
+		// Set the sendingPacketId in the first byte of the message.
+		this.packet[0] = this.sendingPacketId;
+
+		// If we receive an error while sending then return.
+		try {
+			this.dc1.send(this.packet);
+		} catch(error) {
+			DoctoRTC.error(CLASS, "sendTestPacket", "error sending packet with id " + this.sendingPacketId + ": " + error.message);
+			// Return false so the caller will not wait to send again.
+			return false;
+		}
+
+		// Message sent. Update the array with packets information.
+		this.packetsInfo[this.sendingPacketId] = {
+			sentTime: new Date() - this.testBeginTime,
+			recvTime: null,
+			elapsedTime: null
+		};
+
+		DoctoRTC.debug(CLASS, "sendTestPacket", "sent packet with id " + this.sendingPacketId + "(" + (this.sendingPacketId + 1) + "/" + this.numPackets);
+
+		// Update sendingPacketId.
+		this.sendingPacketId++;
+
+		// Return true so the caller will re-calculate when to send next packet.
+		return true;
 	};
 
 	NetworkTester.prototype.sendEndMessage = function() {
@@ -557,6 +610,12 @@
 		var bandwidth_kbits = (statistics.packetSize * 8 / 1000) * statistics.packetsSent;
 		var bandwidth_duration = (statistics.testDuration / 1000) - ((statistics.RTT / 1000) / 2);
 		statistics.bandwidth = (bandwidth_kbits / bandwidth_duration).toFixed(2);
+
+		// Optimal test duration.
+		statistics.optimalTestDuration = (statistics.packetsSent * statistics.sendingInterval / 1000).toFixed(3);
+
+		// Optimal bandwidth (kbit/s), the optimal value considering how long DataChannel.send() blocks.
+		statistics.optimalBandwidth = (((statistics.packetSize * 8 / 1000) * statistics.packetsSent) / statistics.optimalTestDuration).toFixed(2);
 
 		// Fire the user's success callback.
 	 	this.callback(this.packetsInfo, statistics);
