@@ -21,9 +21,7 @@
 		SENDING_INTERVAL: 20,
 		// Interval for retransmitting the END message (milliseconds).
 		END_MESSAGE_INTERVAL: 100,
-		// Allow delayed packets to arrive after receipt of END packet (milliseconds).
-		AFTER_END_TIMEOUT: 200,
-		// Number of rounds in the test.
+		// Number of packets to sent.
 		NUM_PACKETS: 100,
 		// The size of each test packet (bytes).
 		PACKET_SIZE: 500,
@@ -74,10 +72,6 @@
 		this.endMessageInterval = C.END_MESSAGE_INTERVAL;
 		this.endMessagePeriodicTimer = null;
 
-		// Timer that lets delayed packets to arrive after END packet is received.
-		this.afterEndTimeout = options.testTimeout || C.AFTER_END_TIMEOUT;
-		this.afterEndTimer = null;
-
 		// Optional callback called for each received packet.
 		this.onPacketReceived = options.onPacketReceived;
 
@@ -124,8 +118,8 @@
 		this.dc1Open = false;
 		this.dc2Open = false;
 
-		// Flag set to true when the END message is received.
-		this.endMessageReceived = false;
+		// Flag set to true when the test has ended.
+		this.testEnded = false;
 
 		// NOTE: WebRTC states that RTCIceServer MUST contain a "urls" parameter, but Firefox
 		// requires "url" (old way). Fix it.
@@ -212,7 +206,6 @@
 		window.clearTimeout(this.testTimer);
 		window.clearTimeout(this.sendingTimer);
 		window.clearInterval(this.endMessagePeriodicTimer);
-		window.clearTimeout(this.afterEndTimer);
 
 		// Call the user's errback if error is given.
 		if (errorCode) {
@@ -473,8 +466,6 @@
 	};
 
 	NetworkTester.prototype.onMessage2 = function(event) {
-		var self = this;
-
 		// dc2 must receive packet messages from dc1.
 		if (event.data.byteLength === this.packetSize) {
 			var packet = new Int16Array(event.data);
@@ -495,8 +486,10 @@
 				return;
 			}
 
+			var packetInfo = this.packetsInfo[receivedPacketId];
+
 			// Ignore retransmissions (NOTE: it MUST NOT happen in DataChannels).
-			if (this.packetsInfo[receivedPacketId].recvTime) {
+			if (packetInfo.recvTime) {
 				DoctoRTC.warn(CLASS, "onMessage2", "retransmission received (MUST NOT happen in DataChannels!) for packet " + receivedPacketId);
 				return;
 			}
@@ -511,7 +504,6 @@
 			}
 
 			// Update the array with packets information.
-			var packetInfo = this.packetsInfo[receivedPacketId];
 			packetInfo.recvTime = new Date() - this.testBeginTime;
 			packetInfo.elapsedTime = packetInfo.recvTime - packetInfo.sentTime;
 
@@ -519,28 +511,31 @@
 			if (this.onPacketReceived) {
 			 	this.onPacketReceived((receivedPacketId + 1), this.numPackets);
 			}
+
+			// If this is the latest packet the end the test right now.
+			if (receivedPacketId === this.numPackets - 1) {
+				DoctoRTC.debug(CLASS, "onMessage2", "received packet is the last one, end the test");
+
+				this.close();
+				this.endTest();
+			}
 		}
 		// And must also receive END messages.
 		else if (event.data === "END") {
 			// Ignore retransmissions.
-			if (this.endMessageReceived === true) {
-				DoctoRTC.debug(CLASS, "onMessage2", "ignoring received END message retransmission");
+			if (this.testEnded === true) {
+				DoctoRTC.debug(CLASS, "onMessage2", "ignoring received END");
 				return;
 			}
 
-			DoctoRTC.debug(CLASS, "onMessage2", "END message received");
+			DoctoRTC.debug(CLASS, "onMessage2", "END message received, end the test");
 
 			// Set the flag to true.
-			this.endMessageReceived = true;
+			this.testEnded = true;
 
-			// Cancel timers.
-			window.clearInterval(this.endMessagePeriodicTimer);
-			window.clearTimeout(this.testTimer);
-
-			// Let delayed packets to arrive.
-			this.afterEndTimer = window.setTimeout(function() {
-				self.onAfterEndTimeout();
-			}, C.AFTER_END_TIMEOUT);
+			// Finish the test and get the results.
+			this.close();
+			this.endTest();
 		}
 		// Unexpected packet received.
 		else {
@@ -553,14 +548,6 @@
 		DoctoRTC.debug(CLASS, "onTestTimeout", "test timeout");
 
 		this.close(ERRORS.TEST_TIMEOUT);
-	};
-
-	NetworkTester.prototype.onAfterEndTimeout = function() {
-		DoctoRTC.debug(CLASS, "onAfterEndTimeout");
-
-		// Finish the test and get the results.
-		this.close();
-		this.endTest();
 	};
 
 	NetworkTester.prototype.endTest = function() {
@@ -603,6 +590,7 @@
 
 		// Bandwidth (kbit/s).
 		var bandwidth_kbits = (statistics.packetSize * 8 / 1000) * (statistics.packetsSent - lostPackets);
+		// TODO: divide RTT by 2 or not?
 		var bandwidth_duration = (statistics.testDuration / 1000) - ((statistics.RTT / 1000) / 2);
 		statistics.bandwidth = (bandwidth_kbits / bandwidth_duration).toFixed(2);
 
