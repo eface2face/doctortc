@@ -114,8 +114,11 @@
 		// Number of test packets sent (this is: DC.send() returned).
 		this.numPacketsSent = 0;
 
-		// Number of test packets received (note that it may include retransmissions).
+		// Number of test packets received.
 		this.numPacketsReceived = 0;
+
+		// Array holding information about buffered or in-transit amount of data at any moment.
+		this.pendingOngoingData = [];
 
 		// Identificator of the packet being sent.
 		this.sendingPacketId = 0;
@@ -532,9 +535,6 @@
 
 			DoctoRTC.debug(CLASS, "onMessage2", "received packet with id " + receivedPacketId);
 
-			// Acount this packet as a new received one (regardless it is a retransmission).
-			this.numPacketsReceived++;
-
 			// Ignore malformed packets which an identificator bigger than the Array size.
 			if (receivedPacketId >= this.packetsInfo.length) {
 				DoctoRTC.error(CLASS, "onMessage2", "malformed packet with unknown id " + receivedPacketId);
@@ -543,12 +543,20 @@
 			}
 
 			var packetInfo = this.packetsInfo[receivedPacketId];
+			var now = new Date() - this.testBeginTime;
 
 			// Ignore retransmissions (NOTE: it MUST NOT happen in DataChannels).
 			if (packetInfo.recvTime) {
 				DoctoRTC.warn(CLASS, "onMessage2", "retransmission received (MUST NOT happen in DataChannels!) for packet " + receivedPacketId);
 				return;
 			}
+
+			// Acount this packet as a new received one.
+			this.numPacketsReceived++;
+
+			// Update the pendingOngoingData array.
+			var pendingOngoingAmmount = (this.numPacketsSent - this.numPacketsReceived) * this.packetSize;
+			this.pendingOngoingData.push([now, pendingOngoingAmmount]);
 
 			// Check if the packet comes out of order.
 			if (receivedPacketId > this.highestReceivedPacketId) {
@@ -560,7 +568,7 @@
 			}
 
 			// Update the array with packets information.
-			packetInfo.recvTime = new Date() - this.testBeginTime;
+			packetInfo.recvTime = now;
 			packetInfo.elapsedTime = packetInfo.recvTime - packetInfo.sentTime;
 
 			// Call the user provided callback.
@@ -568,8 +576,8 @@
 			 	this.onPacketReceived((receivedPacketId + 1), this.numPackets);
 			}
 
-			// If this is the latest packet the end the test right now.
-			if (receivedPacketId === this.numPackets - 1) {
+			// If this is the last pending packet the end the test right now.
+			if (this.numPacketsReceived === this.numPackets) {
 				// It may been already ended because END arrived before last packet.
 				if (this.testEnded) {
 					return;
@@ -647,7 +655,7 @@
 		statistics.optimalBandwidth = (((statistics.packetSize * 8 / 1000) * statistics.packetsSent) / statistics.optimalTestDuration).toFixed(2);
 
 		// Fire the user's success callback.
-	 	this.callback(statistics, this.packetsInfo);
+	 	this.callback(statistics, this.packetsInfo, this.pendingOngoingData);
 	};
 
 	DoctoRTC.NetworkTester = NetworkTester;

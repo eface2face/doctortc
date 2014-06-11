@@ -76,7 +76,7 @@ Checks network connectivity by connecting to a TURN server and performs bandwitd
 
 #### callback
 
-The success callback is called with two arguments `statistics` and `packetsInfo`:
+The success callback is called with two arguments `statistics`, `packetsInfo` and `pendingOngoingData`:
 
 * `statistics`: An Object with some statistics about the test. Keys in the Object are:
     * `testDuration`: The duration of the test (in milliseconds).
@@ -93,6 +93,7 @@ The success callback is called with two arguments `statistics` and `packetsInfo`
     * `sentTime`: The time in which this packet was sent. It is a delta time (in milliseconds) since the test started.
     * `recvTime`: The time in which this packet was received (may be `null` if the packet was lost!). It is a delta time (in milliseconds) since the test started.
     * `elapsedTime`: The elapsed time (in milliseconds) between this packet was sent and received.
+* `pendingOngoingData`: An Array holding information about buffered or in-transit amount of data at any moment (this is: the amount of bytes sent minus the amount of bytes received).
 
 
 #### Usage example
@@ -106,7 +107,7 @@ DoctoRTC.testNetwork(
         credential: "1234"
     },
     // callback
-    function(statistics, packetsInfo) {
+    function(statistics, packetsInfo, pendingOngoingData) {
         console.log("test completed");
     },
     // errback
@@ -115,15 +116,11 @@ DoctoRTC.testNetwork(
     },
     // options
     {
-        connectTimeout: 2000,
-        testTimeout: 5000,
-        numPackets: 100,
-        packetSize: 250,
-        turnServer2: {
-            urls: "turn:turn.domain.com:1234?transport=tcp",
-            username: "alice",
-            credential: "1234"
-        }
+        connectTimeout: 5000,
+        testTimeout: 20000,
+        numPackets: 400,
+        packetSize: 1250,
+        sendingInterval: 10
     }
 );
 ```
