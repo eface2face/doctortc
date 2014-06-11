@@ -65,7 +65,7 @@ Checks network connectivity by connecting to a TURN server and performs bandwitd
     * `connectTimeout`: An integer representing the maximum duration while connecting to the TURN server (in milliseconds). Default value is 4000.
     * `testTimeout`: An integer representing the maximum duration while sending packets over the DataChannel (in milliseconds). Default value is 8000.
     * `numPackets`: Number of packets to be sent during the test. Default value is 200;
-    * `numPreTestPackets`: Number of packets to be sent before starting the real test (useful to avoid wrong RT results in the initial transmission). Default value is 75;
+    * `ignoredInterval`: Interval (in milliseconds) to ignore for statistics (starting from 0 ms). This is useful to ignore the "low SCTP start" period, so statistics become more reliable. Default value is 2000 ms.
     * `packetSize`: Size of packets to be sent during the test (in bytes). Default value is 500 bytes.
     * `sendingInterval`: Interval of packets sending (in ms). Default value is 20 ms.
     * `turnServer2`: Separate TURN server information for the receiver DataChannel. This allows, for example, testing UDP in upstream and TCP in downstream. Default value is null (so main `turnServer` is also used).
@@ -80,7 +80,8 @@ The success callback is called with two arguments `statistics`, `packetsInfo` an
 
 * `statistics`: An Object with some statistics about the test. Keys in the Object are:
     * `testDuration`: The duration of the test (in milliseconds).
-    * `packetsSent`: Number of packets sent during the test.
+    * `ignoredInterval`: Ignored initial interval (in milliseconds, see above).
+    * `numPackets`: Number of packets sent during the test (by ignored those sent while in the initial ignored interval).
     * `packetSize`: The size (in bytes) of each packet.
     * `sendingInterval`: Interval of packets sending (in milliseconds).
     * `outOfOrder`: Percentage of packets arriving of order.

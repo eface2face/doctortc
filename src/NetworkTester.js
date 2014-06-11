@@ -27,13 +27,12 @@
 		NUM_PACKETS: 100,
 		// The size of each test packet (bytes).
 		PACKET_SIZE: 500,
-		// Number of pre-test packets to send before starting the real test.
-		NUM_PRE_TEST_PACKETS: 75
+		// Ignored initial interval for the statistics (in milliseconds).
+		IGNORED_INTERVAL: 2000
 	};
 	var SDP_CONSTRAINS = {
 		mandatory: {
 			// NOTE: We need a fake audio track for Firefox to support DataChannel.
-			// See https://bitbucket.org/ibc_aliax/doctortc.js/issue/1/datachannels-in-firefox-require-audio
 			OfferToReceiveAudio: true,
 			OfferToReceiveVideo: false
 		}
@@ -62,12 +61,7 @@
 		this.startMessagePeriodicTimer = null;
 
 		// Interval for sending packets.
-		if (options.sendingInterval === 0) {
-			this.sendingInterval = 0;
-		}
-		else {
-			this.sendingInterval = options.sendingInterval || C.SENDING_INTERVAL;
-		}
+		this.sendingInterval = options.sendingInterval || C.SENDING_INTERVAL;
 		this.sendingTimer = null;
 
 		// Timer for next packet sending (may change for each one if DataChannel.send()
@@ -84,12 +78,17 @@
 		// Number of packets to send during the test.
 		this.numPackets = options.numPackets || C.NUM_PACKETS;
 
-		// Number of pre-test packets to send before starting the real test.
-		if (options.numPreTestPackets === 0) {
-			this.numPreTestPackets = 0;
+		// Ignored initial interval.
+		if (options.ignoredInterval === 0) {
+			this.ignoredInterval = 0;
 		}
 		else {
-			this.numPreTestPackets = options.numPreTestPackets || C.NUM_PRE_TEST_PACKETS;
+			this.ignoredInterval = options.ignoredInterval || C.IGNORED_INTERVAL;
+		}
+		// Ensure that it is less than the half of optimal test duration!
+		var optimalTestDuration = this.numPackets * this.sendingInterval;
+		if (this.ignoredInterval > optimalTestDuration / 2) {
+			throw "'ignoredInterval' (" + this.ignoredInterval + " ms) is too high";
 		}
 
 		// Size (in bytes) of test packets.
@@ -98,9 +97,6 @@
 		if (this.packetSize % 2 !== 0) {
 			this.packetSize++;
 		}
-
-		// Flag set to true when the test has started.
-		this.testStarted = false;
 
 		// Packet to be sent during the test (first bytes will me modified while sending).
 		// NOTE: This is a typed Array of Int16 elements, so divide its size by 2 in order
@@ -131,6 +127,9 @@
 
 		// Test begin time.
 		this.testBeginTime = null;
+
+		// Time where the initial ignored interval ends (so statistics begin).
+		this.validTestBeginTime = null;
 
 		// Flags set to true when DataChannels get connected.
 		this.dc1Open = false;
@@ -305,8 +304,8 @@
 			// Cancel timer.
 			window.clearTimeout(this.connectTimer);
 
-			// Send the pre-test packets.
-			this.preTest();
+			// start the test.
+			this.startTest();
 		}
 	};
 
@@ -320,8 +319,8 @@
 			// Cancel timer.
 			window.clearTimeout(this.connectTimer);
 
-			// Send the pre-test packets.
-			this.preTest();
+			// start the test.
+			this.startTest();
 		}
 	};
 
@@ -335,59 +334,6 @@
 		// dc1 MUST NOT receive any messages from dc2.
 		DoctoRTC.error(CLASS, "onMessage1", "unexpected message received");
 		this.close(ERRORS.INTERNAL_ERROR);
-	};
-
-	NetworkTester.prototype.preTest = function() {
-		DoctoRTC.debug(CLASS, "preTest");
-
-		var self = this;
-		var numPacketsSent = 0;
-
-		// Send pre-test packets.
-		var preTestPeriodicTimer = window.setInterval(function() {
-			if (numPacketsSent === self.numPreTestPackets) {
-				DoctoRTC.debug(CLASS, "preTest", "all the pre-test packets sent, sending the START message");
-				window.clearInterval(preTestPeriodicTimer);
-				self.sendStartMessage();
-				return;
-			}
-
-			numPacketsSent++;
-
-			// Don't attempt to send  a packet if the sending buffer has data yet.
-			if (self.dc1.bufferedAmount !== 0) {
-				DoctoRTC.debug(CLASS, "preTest", "sending buffer not empty, waiting");
-				return;
-			}
-
-			// Set -1 in the first byte of the message.
-			self.packet[0] = -1;
-
-			// If we receive an error while sending then ignore it.
-			try {
-				self.dc1.send(self.packet);
-				DoctoRTC.debug(CLASS, "preTest", "pre-test packet " + numPacketsSent + " sent");
-			} catch(error) {
-				DoctoRTC.error(CLASS, "preTest", "error sending pre-test packet: " + error.message);
-				return;
-			}
-		}, this.sendingInterval);
-	};
-
-	NetworkTester.prototype.sendStartMessage = function() {
-		DoctoRTC.debug(CLASS, "sendStartMessage");
-
-		var self = this;
-
-		// Send the START message from dc1 to dc2 (repeat it as it may be lost).
-		this.startMessagePeriodicTimer = window.setInterval(function() {
-			self.dc1.send("START");
-		}, C.START_MESSAGE_INTERVAL);
-
-		// Run the testTimer.
-		this.testTimer = window.setTimeout(function() {
-			self.onTestTimeout();
-		}, this.testTimeout);
 	};
 
 	NetworkTester.prototype.startTest = function() {
@@ -465,18 +411,33 @@
 			return false;
 		}
 
+		var now = new Date() - this.testBeginTime;
+
 		// Message sent. Update the array with packets information.
 		this.packetsInfo[this.sendingPacketId] = {
-			sentTime: new Date() - this.testBeginTime,
+			sentTime: now,
 			recvTime: null,
 			elapsedTime: null
 		};
 
 		DoctoRTC.debug(CLASS, "sendTestPacket", "sent packet with id " + this.sendingPacketId + " (" + (this.sendingPacketId + 1) + "/" + this.numPackets + ")");
 
+		// Ignore the packet if it was sent before the initial ignored interval.
+		if (now <= this.ignoredInterval) {
+			this.packetsInfo[this.sendingPacketId].ignored = true;
+		}
+		// Otherwise may be we must set the validTestBeginTime.
+		else if (! this.validTestBeginTime) {
+			this.validTestBeginTime = new Date();
+		}
+
 		// Update sendingPacketId and numSentPackets.
 		this.sendingPacketId++;
 		this.numPacketsSent++;
+
+		// Update the pendingOngoingData array.
+		var pendingOngoingAmmount = (this.numPacketsSent - this.numPacketsReceived) * this.packetSize;
+		this.pendingOngoingData.push([now, pendingOngoingAmmount]);
 
 		// Return true so the caller will re-calculate when to send next packet.
 		return true;
@@ -494,36 +455,8 @@
 	};
 
 	NetworkTester.prototype.onMessage2 = function(event) {
-		// START message received.
-		if (event.data === "START") {
-			// It may (should) been already received.
-			if (this.testStarted) {
-				return;
-			}
-
-			DoctoRTC.debug(CLASS, "onMessage2", "START message received, start the test");
-
-			window.clearInterval(this.startMessagePeriodicTimer);
-			this.testStarted = true;
-			this.startTest();
-		}
-
-		// END message received.
-		else if (event.data === "END") {
-			// It may (should) been already ended because last packet was already received.
-			if (this.testEnded) {
-				return;
-			}
-
-			DoctoRTC.debug(CLASS, "onMessage2", "END message received, end the test");
-
-			this.testEnded = true;
-			this.close();
-			this.endTest();
-		}
-
 		// Test packet received.
-		else if (event.data.byteLength === this.packetSize) {
+		if (event.data.byteLength === this.packetSize) {
 			var packet = new Int16Array(event.data);
 			var receivedPacketId = packet[0];
 
@@ -559,10 +492,11 @@
 			this.pendingOngoingData.push([now, pendingOngoingAmmount]);
 
 			// Check if the packet comes out of order.
+			// NOTE: Just if it is not an "ignored" packet sent before the initial ignored interval.
 			if (receivedPacketId > this.highestReceivedPacketId) {
 				this.highestReceivedPacketId = receivedPacketId;
 			}
-			else {
+			else if (! packetInfo.ignored) {
 				DoctoRTC.debug(CLASS, "onMessage2", "packet " + receivedPacketId + " received our of order");
 				this.outOfOrderReceivedPackets++;
 			}
@@ -591,6 +525,20 @@
 			}
 		}
 
+		// END message received.
+		else if (event.data === "END") {
+			// It may (should) been already ended because last packet was already received.
+			if (this.testEnded) {
+				return;
+			}
+
+			DoctoRTC.debug(CLASS, "onMessage2", "END message received, end the test");
+
+			this.testEnded = true;
+			this.close();
+			this.endTest();
+		}
+
 		// Unexpected packet received.
 		else {
 			DoctoRTC.error(CLASS, "onMessage2", "unexpected message received");
@@ -609,28 +557,44 @@
 
 		// Fill the statistics Object.
 		var statistics = {};
+		var i;
 
 		// Test duration (milliseconds).
-		statistics.testDuration = (new Date() - this.testBeginTime).toFixed(3);
+		// NOTE: Ignore the ignored initial interval.
+		statistics.testDuration = (new Date() - this.validTestBeginTime).toFixed(3);
 
-		// Number of packets sent.
-		statistics.packetsSent = this.numPackets;
+		// Ignored interval.
+		statistics.ignoredInterval = this.ignoredInterval;
+
+		// Number of packets sent (and not ignored).
+		var numPackets = 0;
+		for(i = 0; i < this.numPackets; i++) {
+			if (! this.packetsInfo[i].ignored) {
+				numPackets++;
+			}
+		}
+		statistics.numPackets = numPackets;
 
 		// Packet size (Bytes).
 		statistics.packetSize = this.packetSize;
 
-		// Packet size (Bytes).
+		// Sending interval (ms).
 		statistics.sendingInterval = this.sendingInterval;
 
 		// Percentage of packets received out of order.
-		statistics.outOfOrder = (this.outOfOrderReceivedPackets / statistics.packetsSent).toFixed(5) * 100;
+		statistics.outOfOrder = (this.outOfOrderReceivedPackets / statistics.numPackets).toFixed(5) * 100;
 
 		// Packet loss and RTT.
+		// NOTE: Don't consider the initial ignored interval.
 		var lostPackets = 0;
 		var sumElapsedTimes = 0;
 
-		for(var i = this.packetsInfo.length - 1; i >= 0; i--) {
+		for(i = 0; i < this.numPackets; i++) {
 			var packetInfo = this.packetsInfo[i];
+
+			if (packetInfo.ignored) {
+				continue;
+			}
 
 			if (! packetInfo.recvTime) {
 				lostPackets++;
@@ -639,20 +603,19 @@
 				sumElapsedTimes += ( packetInfo.recvTime - packetInfo.sentTime );
 			}
 		}
-		statistics.packetLoss = (lostPackets / statistics.packetsSent).toFixed(5) * 100;
-		statistics.RTT = (sumElapsedTimes / (statistics.packetsSent - lostPackets)).toFixed(3);
+		statistics.packetLoss = (lostPackets / statistics.numPackets).toFixed(2) * 100;
+		statistics.RTT = (sumElapsedTimes / (statistics.numPackets - lostPackets)).toFixed(3);
 
 		// Bandwidth (kbit/s).
-		var bandwidth_kbits = (statistics.packetSize * 8 / 1000) * (statistics.packetsSent - lostPackets);
-		// TODO: divide RTT by 2 or not?
+		var bandwidth_kbits = (statistics.packetSize * 8 / 1000) * (statistics.numPackets - lostPackets);
 		var bandwidth_duration = (statistics.testDuration / 1000) - ((statistics.RTT / 1000) / 2);
 		statistics.bandwidth = (bandwidth_kbits / bandwidth_duration).toFixed(2);
 
 		// Optimal test duration (ms).
-		statistics.optimalTestDuration = (statistics.packetsSent * statistics.sendingInterval / 1000).toFixed(3);
+		statistics.optimalTestDuration = (statistics.numPackets * statistics.sendingInterval / 1000).toFixed(3);
 
 		// Optimal bandwidth (kbit/s).
-		statistics.optimalBandwidth = (((statistics.packetSize * 8 / 1000) * statistics.packetsSent) / statistics.optimalTestDuration).toFixed(2);
+		statistics.optimalBandwidth = (((statistics.packetSize * 8 / 1000) * statistics.numPackets) / statistics.optimalTestDuration).toFixed(2);
 
 		// Fire the user's success callback.
 	 	this.callback(statistics, this.packetsInfo, this.pendingOngoingData);
