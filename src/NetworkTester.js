@@ -603,7 +603,7 @@
 				sumElapsedTimes += ( packetInfo.recvTime - packetInfo.sentTime );
 			}
 		}
-		statistics.packetLoss = (lostPackets / statistics.numPackets).toFixed(4) * 100;
+		statistics.packetLoss = (lostPackets / statistics.numPackets).toFixed(2) * 100;
 		statistics.RTT = (sumElapsedTimes / (statistics.numPackets - lostPackets)).toFixed(3);
 
 		// Bandwidth (kbit/s).
