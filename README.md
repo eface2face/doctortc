@@ -76,12 +76,8 @@ Checks network connectivity by connecting to a TURN server and performs bandwitd
 
 #### callback
 
-The success callback is called with two arguments `packetsInfo` and `statistics`:
+The success callback is called with two arguments `statistics` and `packetsInfo`:
 
-* `packetsInfo`: An Array with the information each packet sent during the test. Each position in the array contains an Object with the following keys:
-    * `sentTime`: The time in which this packet was sent. It is a delta time (in milliseconds) since the test started.
-    * `recvTime`: The time in which this packet was received (may be `null` if the packet was lost!). It is a delta time (in milliseconds) since the test started.
-    * `elapsedTime`: The elapsed time (in milliseconds) between this packet was sent and received.
 * `statistics`: An Object with some statistics about the test. Keys in the Object are:
     * `testDuration`: The duration of the test (in milliseconds).
     * `packetsSent`: Number of packets sent during the test.
@@ -93,6 +89,10 @@ The success callback is called with two arguments `packetsInfo` and `statistics`
     * `bandwidth`: Rate of data transferred (in kbit/s).
     * `optimalTestDuration`: The optimal duration of the test (in milliseconds).
     * `optimalBandwidth`: The optimal bandwidth (in kbit/s).
+* `packetsInfo`: An Array with the information each packet sent during the test. Each position in the array contains an Object with the following keys:
+    * `sentTime`: The time in which this packet was sent. It is a delta time (in milliseconds) since the test started.
+    * `recvTime`: The time in which this packet was received (may be `null` if the packet was lost!). It is a delta time (in milliseconds) since the test started.
+    * `elapsedTime`: The elapsed time (in milliseconds) between this packet was sent and received.
 
 
 #### Usage example
@@ -106,7 +106,7 @@ DoctoRTC.testNetwork(
         credential: "1234"
     },
     // callback
-    function(packetsInfo, statistics) {
+    function(statistics, packetsInfo) {
         console.log("test completed");
     },
     // errback

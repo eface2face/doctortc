@@ -17,6 +17,8 @@
 		CONNECT_TIMEOUT: 4000,
 		// Test maximum duration after connection (milliseconds).
 		TEST_TIMEOUT: 8000,
+		// Interval for retransmitting the START message (milliseconds).
+		START_MESSAGE_INTERVAL: 100,
 		// Interval for sending test packets (milliseconds).
 		SENDING_INTERVAL: 20,
 		// Interval for retransmitting the END message (milliseconds).
@@ -54,6 +56,10 @@
 		// Timer that limits the test duration once packets are being sent/received.
 		this.testTimeout = options.testTimeout || C.TEST_TIMEOUT;
 		this.testTimer = null;
+
+		// Timer that limits the time while receiving the START message.
+		this.startMessageInterval = C.START_MESSAGE_INTERVAL;
+		this.startMessagePeriodicTimer = null;
 
 		// Interval for sending packets.
 		if (options.sendingInterval === 0) {
@@ -93,6 +99,9 @@
 			this.packetSize++;
 		}
 
+		// Flag set to true when the test has started.
+		this.testStarted = false;
+
 		// Packet to be sent during the test (first bytes will me modified while sending).
 		// NOTE: This is a typed Array of Int16 elements, so divide its size by 2 in order
 		// to get this.packetSize bytes.
@@ -102,17 +111,23 @@
 		// An array for holding information about every packet sent.
 		this.packetsInfo = new Array(this.numPackets);
 
+		// Number of test packets sent (this is: DC.send() returned).
+		this.numPacketsSent = 0;
+
+		// Number of test packets received (note that it may include retransmissions).
+		this.numPacketsReceived = 0;
+
 		// Identificator of the packet being sent.
 		this.sendingPacketId = 0;
+
+		// Highest identificator of all the received packets.
+		this.highestReceivedPacketId = -1;
 
 		// Number of packets received out of order.
 		this.outOfOrderReceivedPackets = 0;
 
 		// Test begin time.
 		this.testBeginTime = null;
-
-		// Highest identificator of all the received packets.
-		this.highestReceivedPacketId = -1;
 
 		// Flags set to true when DataChannels get connected.
 		this.dc1Open = false;
@@ -205,6 +220,7 @@
 		window.clearTimeout(this.connectTimer);
 		window.clearTimeout(this.testTimer);
 		window.clearTimeout(this.sendingTimer);
+		window.clearInterval(this.startMessagePeriodicTimer);
 		window.clearInterval(this.endMessagePeriodicTimer);
 
 		// Call the user's errback if error is given.
@@ -327,18 +343,19 @@
 		// Send pre-test packets.
 		var preTestPeriodicTimer = window.setInterval(function() {
 			if (numPacketsSent === self.numPreTestPackets) {
-				DoctoRTC.debug(CLASS, "preTest", "all the pre-test packets sent, starting the test");
+				DoctoRTC.debug(CLASS, "preTest", "all the pre-test packets sent, sending the START message");
 				window.clearInterval(preTestPeriodicTimer);
-				self.startTest();
+				self.sendStartMessage();
+				return;
 			}
+
+			numPacketsSent++;
 
 			// Don't attempt to send  a packet if the sending buffer has data yet.
 			if (self.dc1.bufferedAmount !== 0) {
 				DoctoRTC.debug(CLASS, "preTest", "sending buffer not empty, waiting");
 				return;
 			}
-
-			numPacketsSent++;
 
 			// Set -1 in the first byte of the message.
 			self.packet[0] = -1;
@@ -354,15 +371,27 @@
 		}, this.sendingInterval);
 	};
 
-	NetworkTester.prototype.startTest = function() {
-		DoctoRTC.debug(CLASS, "startTest");
+	NetworkTester.prototype.sendStartMessage = function() {
+		DoctoRTC.debug(CLASS, "sendStartMessage");
 
 		var self = this;
+
+		// Send the START message from dc1 to dc2 (repeat it as it may be lost).
+		this.startMessagePeriodicTimer = window.setInterval(function() {
+			self.dc1.send("START");
+		}, C.START_MESSAGE_INTERVAL);
 
 		// Run the testTimer.
 		this.testTimer = window.setTimeout(function() {
 			self.onTestTimeout();
 		}, this.testTimeout);
+	};
+
+	NetworkTester.prototype.startTest = function() {
+		DoctoRTC.debug(CLASS, "startTest");
+
+		// Test begins now.
+		this.testBeginTime = new Date();
 
 		// Send all the packets.
 		this.sendTestPackets();
@@ -380,12 +409,12 @@
 			var rc = self.sendTestPacket();
 
 			var sendTime = new Date() - sendBeginTime;
-			if (sendTime > 1) {
+			if (sendTime > 2) {
 				DoctoRTC.warn(CLASS, "sendTestPackets", "DataChannel.send() took " + sendTime + ' ms');
 			}
 
 			// Finished?
-			if (self.sendingPacketId === self.numPackets) {
+			if (self.numPacketsSent === self.numPackets) {
 				DoctoRTC.debug(CLASS, "sendTestPackets", "all the packets sent");
 
 				// Send the END message.
@@ -396,13 +425,13 @@
 				// If sendTestPacket() returned true we must re-calculate when to send next packet.
 				if (rc) {
 					self.sendingTimeout = self.sendingInterval - sendTime;
-					if (self.sendingTimeout < 1) {
-						self.sendingTimeout = 1;
+					if (self.sendingTimeout < 2) {
+						self.sendingTimeout = 2;
 					}
 				}
 				// If sendTestPacket() returned false then the packet was not sent so try again now.
 				else {
-					self.sendingTimeout = 1;
+					self.sendingTimeout = 2;
 				}
 
 				// Continue sending packets.
@@ -433,11 +462,6 @@
 			return false;
 		}
 
-		// Test begins now (if this is the first packet).
-		if (this.sendingPacketId === 0) {
-			this.testBeginTime = new Date();
-		}
-
 		// Message sent. Update the array with packets information.
 		this.packetsInfo[this.sendingPacketId] = {
 			sentTime: new Date() - this.testBeginTime,
@@ -445,10 +469,11 @@
 			elapsedTime: null
 		};
 
-		DoctoRTC.debug(CLASS, "sendTestPacket", "sent packet with id " + this.sendingPacketId + "(" + (this.sendingPacketId + 1) + "/" + this.numPackets);
+		DoctoRTC.debug(CLASS, "sendTestPacket", "sent packet with id " + this.sendingPacketId + " (" + (this.sendingPacketId + 1) + "/" + this.numPackets + ")");
 
-		// Update sendingPacketId.
+		// Update sendingPacketId and numSentPackets.
 		this.sendingPacketId++;
+		this.numPacketsSent++;
 
 		// Return true so the caller will re-calculate when to send next packet.
 		return true;
@@ -466,8 +491,36 @@
 	};
 
 	NetworkTester.prototype.onMessage2 = function(event) {
-		// dc2 must receive packet messages from dc1.
-		if (event.data.byteLength === this.packetSize) {
+		// START message received.
+		if (event.data === "START") {
+			// It may (should) been already received.
+			if (this.testStarted) {
+				return;
+			}
+
+			DoctoRTC.debug(CLASS, "onMessage2", "START message received, start the test");
+
+			window.clearInterval(this.startMessagePeriodicTimer);
+			this.testStarted = true;
+			this.startTest();
+		}
+
+		// END message received.
+		else if (event.data === "END") {
+			// It may (should) been already ended because last packet was already received.
+			if (this.testEnded) {
+				return;
+			}
+
+			DoctoRTC.debug(CLASS, "onMessage2", "END message received, end the test");
+
+			this.testEnded = true;
+			this.close();
+			this.endTest();
+		}
+
+		// Test packet received.
+		else if (event.data.byteLength === this.packetSize) {
 			var packet = new Int16Array(event.data);
 			var receivedPacketId = packet[0];
 
@@ -478,6 +531,9 @@
 			}
 
 			DoctoRTC.debug(CLASS, "onMessage2", "received packet with id " + receivedPacketId);
+
+			// Acount this packet as a new received one (regardless it is a retransmission).
+			this.numPacketsReceived++;
 
 			// Ignore malformed packets which an identificator bigger than the Array size.
 			if (receivedPacketId >= this.packetsInfo.length) {
@@ -514,29 +570,19 @@
 
 			// If this is the latest packet the end the test right now.
 			if (receivedPacketId === this.numPackets - 1) {
+				// It may been already ended because END arrived before last packet.
+				if (this.testEnded) {
+					return;
+				}
+
 				DoctoRTC.debug(CLASS, "onMessage2", "received packet is the last one, end the test");
 
+				this.testEnded = true;
 				this.close();
 				this.endTest();
 			}
 		}
-		// And must also receive END messages.
-		else if (event.data === "END") {
-			// Ignore retransmissions.
-			if (this.testEnded === true) {
-				DoctoRTC.debug(CLASS, "onMessage2", "ignoring received END");
-				return;
-			}
 
-			DoctoRTC.debug(CLASS, "onMessage2", "END message received, end the test");
-
-			// Set the flag to true.
-			this.testEnded = true;
-
-			// Finish the test and get the results.
-			this.close();
-			this.endTest();
-		}
 		// Unexpected packet received.
 		else {
 			DoctoRTC.error(CLASS, "onMessage2", "unexpected message received");
@@ -601,7 +647,7 @@
 		statistics.optimalBandwidth = (((statistics.packetSize * 8 / 1000) * statistics.packetsSent) / statistics.optimalTestDuration).toFixed(2);
 
 		// Fire the user's success callback.
-	 	this.callback(this.packetsInfo, statistics);
+	 	this.callback(statistics, this.packetsInfo);
 	};
 
 	DoctoRTC.NetworkTester = NetworkTester;
