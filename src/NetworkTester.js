@@ -8,7 +8,8 @@
 	var ERRORS = {
 		CONNECTION_TIMEOUT: "CONNECTION TIMEOUT",
 		TEST_TIMEOUT: "TEST TIMEOUT",
-		INTERNAL_ERROR: "INTERNAL ERROR"
+		INTERNAL_ERROR: "INTERNAL ERROR",
+		CANCELLED: "CANCELLED"
 	};
 	var C = {
 		// The DataChannel.maxRetransmitTime value (milliseconds).
@@ -20,21 +21,22 @@
 		// Interval for retransmitting the START message (milliseconds).
 		START_MESSAGE_INTERVAL: 100,
 		// Interval for sending test packets (milliseconds).
-		SENDING_INTERVAL: 20,
+		SENDING_INTERVAL: 10,
 		// Interval for retransmitting the END message (milliseconds).
 		END_MESSAGE_INTERVAL: 100,
 		// Number of packets to sent.
-		NUM_PACKETS: 100,
+		NUM_PACKETS: 800,
 		// The size of each test packet (bytes).
-		PACKET_SIZE: 500,
+		PACKET_SIZE: 1250,
 		// Ignored initial interval for the statistics (in milliseconds).
 		IGNORED_INTERVAL: 2000
 	};
 	var SDP_CONSTRAINS = {
 		mandatory: {
 			// NOTE: We need a fake audio track for Firefox to support DataChannel.
-			OfferToReceiveAudio: true,
-			OfferToReceiveVideo: false
+			// NOTE: Disable it as anyhow Firefox does not work at all.
+			// OfferToReceiveAudio: true,
+			// OfferToReceiveVideo: false
 		}
 	};
 
@@ -112,6 +114,12 @@
 
 		// Number of test packets received.
 		this.numPacketsReceived = 0;
+
+		// Hold the size of the pending onging data (bytes).
+		this.pendingOngoingSize = 0;
+
+		// MAx size of the pending onging data (bytes).
+		this.maxPendingOngoingSize = this.packetSize * 25;
 
 		// Array holding information about buffered or in-transit amount of data at any moment.
 		this.pendingOngoingData = [];
@@ -207,6 +215,11 @@
 
 	NetworkTester.prototype.close = function(errorCode) {
 		DoctoRTC.debug(CLASS, "close");
+
+		if (this.testEnded) {
+			return;
+		}
+		this.testEnded = true;
 
 		try { this.dc1.close(); } catch(error) {}
 		try { this.dc2.close(); } catch(error) {}
@@ -392,9 +405,16 @@
 	NetworkTester.prototype.sendTestPacket = function() {
 		DoctoRTC.debug(CLASS, "sendTestPacket", "sending packet with id " + this.sendingPacketId);
 
+		// Don't attempt to send a packet if the pending ongoing data is too big.
+		if (this.pendingOngoingSize > this.maxPendingOngoingSize) {
+			DoctoRTC.warn(CLASS, "sendTestPacket", "pending ongoing size (" + this.pendingOngoingSize + " bytes) higher than maximum allowed (" + this.maxPendingOngoingSize + " bytes), waiting before sending a new packet");
+			// Return false so the caller will not wait to send again.
+			return false;
+		}
+
 		// Don't attempt to send a packet if the sending buffer has data yet.
 		if (this.dc1.bufferedAmount !== 0) {
-			DoctoRTC.warn(CLASS, "sendTestPacket", "sending buffer not empty");
+			DoctoRTC.warn(CLASS, "sendTestPacket", "sending buffer not empty, waiting before sending a new packet");
 			// Return false so the caller will not wait to send again.
 			return false;
 		}
@@ -436,8 +456,8 @@
 		this.numPacketsSent++;
 
 		// Update the pendingOngoingData array.
-		var pendingOngoingAmmount = (this.numPacketsSent - this.numPacketsReceived) * this.packetSize;
-		this.pendingOngoingData.push([now, pendingOngoingAmmount]);
+		this.pendingOngoingSize = (this.numPacketsSent - this.numPacketsReceived) * this.packetSize;
+		this.pendingOngoingData.push([now, this.pendingOngoingSize]);
 
 		// Return true so the caller will re-calculate when to send next packet.
 		return true;
@@ -488,8 +508,8 @@
 			this.numPacketsReceived++;
 
 			// Update the pendingOngoingData array.
-			var pendingOngoingAmmount = (this.numPacketsSent - this.numPacketsReceived) * this.packetSize;
-			this.pendingOngoingData.push([now, pendingOngoingAmmount]);
+			this.pendingOngoingSize = (this.numPacketsSent - this.numPacketsReceived) * this.packetSize;
+			this.pendingOngoingData.push([now, this.pendingOngoingSize]);
 
 			// Check if the packet comes out of order.
 			// NOTE: Just if it is not an "ignored" packet sent before the initial ignored interval.
@@ -619,6 +639,16 @@
 
 		// Fire the user's success callback.
 	 	this.callback(statistics, this.packetsInfo, this.pendingOngoingData);
+	};
+
+	NetworkTester.prototype.cancel = function() {
+		DoctoRTC.debug(CLASS, "cancel");
+
+		if (this.testEnded) {
+			return false;
+		}
+
+		this.close(ERRORS.CANCELLED);
 	};
 
 	DoctoRTC.NetworkTester = NetworkTester;

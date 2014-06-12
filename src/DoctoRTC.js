@@ -48,7 +48,7 @@ var DoctoRTC = (function() {
 	};
 
 	DoctoRTC.testNetwork = function(turnServer, callback, errback, options) {
-		new DoctoRTC.NetworkTester(turnServer, callback, errback, options);
+		return new DoctoRTC.NetworkTester(turnServer, callback, errback, options);
 	};
 
 	/* Private functions. */

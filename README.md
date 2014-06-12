@@ -41,7 +41,7 @@ Include `doctortc-X.Y.Z.min.js` (or the non minified version) into your HTML and
 
 Checks WebRTC support in the current browser.
 
-* return:  *true* if WebRTC is supported, *false* otherwise.
+* return: *true* if WebRTC is supported, *false* otherwise.
 
 
 ### DoctoRTC.setVerbose(verbose)
@@ -61,17 +61,20 @@ Checks network connectivity by connecting to a TURN server and performs bandwitd
     * `CONNECTION TIMEOUT`: The connection to the TURN server failed due to timeout (note that, as per current WebRTC specs, if the TURN crendentials are wrong the application cannot realize of it so timeout will raise).
     * `TEST_TIMEOUT`: Connection to the TURN server succeeded but the test could not complete in time.
     * `INTERNAL_ERROR`: Unknown or unexpected error (may be caused due to the browser's WebRTC stack, issues in the TURN server...).
+    * `CANCELLED`: The test was cancelled while running (the user called `cancel()` on it).
 * param `options`: An Object with optional extra parameters. Available parameters in this Object are:
     * `connectTimeout`: An integer representing the maximum duration while connecting to the TURN server (in milliseconds). Default value is 4000.
     * `testTimeout`: An integer representing the maximum duration while sending packets over the DataChannel (in milliseconds). Default value is 8000.
-    * `numPackets`: Number of packets to be sent during the test. Default value is 200;
+    * `numPackets`: Number of packets to be sent during the test. Default value is 800;
     * `ignoredInterval`: Interval (in milliseconds) to ignore for statistics (starting from 0 ms). This is useful to ignore the "low SCTP start" period, so statistics become more reliable. Default value is 2000 ms.
-    * `packetSize`: Size of packets to be sent during the test (in bytes). Default value is 500 bytes.
-    * `sendingInterval`: Interval of packets sending (in ms). Default value is 20 ms.
+    * `packetSize`: Size of packets to be sent during the test (in bytes). Default value is 1250 bytes.
+    * `sendingInterval`: Interval of packets sending (in ms). Default value is 10 ms.
     * `turnServer2`: Separate TURN server information for the receiver DataChannel. This allows, for example, testing UDP in upstream and TCP in downstream. Default value is null (so main `turnServer` is also used).
     * `onPacketReceived`: A callback function that is called for each received valid packet. The function is called with two arguments:
         * `numPacketsReceived`: The number of received packets.
         * `totalPackets`: The number of packets that should be received in total.
+
+* return: `DoctoRTC.testNetwork()` returns an instance of the class `DoctoRTC.NetworkTester` (see below).
 
 
 #### callback
@@ -125,6 +128,11 @@ DoctoRTC.testNetwork(
     }
 );
 ```
+
+
+### DoctoRTC.NetworkTester.cancel()
+
+Cancels the network test execution on the given `DoctoRTC.NetworkTester` instance (if the test was running it will cause the `errback` to be called with error `CANCELLED`).
 
 
 ## Author
