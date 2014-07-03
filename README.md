@@ -97,8 +97,9 @@ The success callback is called with two arguments `statistics`, `packetsInfo` an
     * `sentTime`: The time in which this packet was sent. It is a delta time (in milliseconds) since the test started.
     * `recvTime`: The time in which this packet was received (may be `null` if the packet was lost!). It is a delta time (in milliseconds) since the test started.
     * `elapsedTime`: The elapsed time (in milliseconds) between this packet was sent and received.
-* `pendingOngoingData`: An Array holding information about buffered or in-transit amount of data at any moment (this is: the amount of bytes sent minus the amount of bytes received).
-
+* `pendingOngoingData`: An Array holding information about buffered or in-transit amount of data at any moment. Each position in the array contains an Object with the following keys:
+    * `sentTime`: The time in which this packet was sent. It is a delta time (in milliseconds) since the test started.
+    * `pendingData`: The amount of bytes sent minus the amount of bytes received at the time of `sentTime`.
 
 #### Usage example
 
