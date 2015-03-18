@@ -8,25 +8,21 @@ A JavaScript utility for checking browser's WebRTC support and performing bandwi
 Must have **nodejs** (which provides `npm` command) and **grunt-cli** (which provides `grunt` command) installed.
 
 * Get the source code:
-```
-git clone https://ibc_aliax@bitbucket.org/ibc_aliax/doctortc.js.git
-cd doctortc.js/
-```
+
+    git clone git@git.assembla.com:ef2f-js.doctortc.git doctortc
+    cd doctortc/
 
 * Install dependencies:
-```
-npm install
-```
+
+    npm install
 
 * Build `dist/doctortc-devel.js` library:
-```
-grunt devel
-```
+
+    grunt devel
 
 * Build `dist/doctortc-X.Y.Z.js` and `dist/doctortc-X.Y.Z.min.js` libraries:
-```
-grunt dist
-```
+
+    grunt dist
 
 
 ## Usage
@@ -103,32 +99,30 @@ The success callback is called with two arguments `statistics`, `packetsInfo` an
 
 #### Usage example
 
-```
-DoctoRTC.testNetwork(
-    // turnServer
-    {
-        urls: "turn:turn.domain.com:1234?transport=udp",
-        username: "alice",
-        credential: "1234"
-    },
-    // callback
-    function(statistics, packetsInfo, pendingOngoingData) {
-        console.log("test completed");
-    },
-    // errback
-    function(error) {
-        console.error("test failed: " + error);
-    },
-    // options
-    {
-        connectTimeout: 5000,
-        testTimeout: 20000,
-        numPackets: 400,
-        packetSize: 1250,
-        sendingInterval: 10
-    }
-);
-```
+    DoctoRTC.testNetwork(
+        // turnServer
+        {
+            urls: "turn:turn.domain.com:1234?transport=udp",
+            username: "alice",
+            credential: "1234"
+        },
+        // callback
+        function(statistics, packetsInfo, pendingOngoingData) {
+            console.log("test completed");
+        },
+        // errback
+        function(error) {
+            console.error("test failed: " + error);
+        },
+        // options
+        {
+            connectTimeout: 5000,
+            testTimeout: 20000,
+            numPackets: 400,
+            packetSize: 1250,
+            sendingInterval: 10
+        }
+    );
 
 
 ### DoctoRTC.NetworkTester.cancel()
