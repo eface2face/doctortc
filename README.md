@@ -7,20 +7,20 @@ A JavaScript utility for checking browser's WebRTC support and performing bandwi
 
 Must have **nodejs** (which provides `npm` command) and **grunt-cli** (which provides `grunt` command) installed.
 
-* Get the source code:
+#### Get the source code
 
     git clone git@git.assembla.com:ef2f-js.doctortc.git doctortc
     cd doctortc/
 
-* Install dependencies:
+#### Install dependencies
 
     npm install
 
-* Build `dist/doctortc-devel.js` library:
+#### Build `dist/doctortc-devel.js` library
 
     grunt devel
 
-* Build `dist/doctortc-X.Y.Z.js` and `dist/doctortc-X.Y.Z.min.js` libraries:
+#### Build `dist/doctortc-X.Y.Z.js` and `dist/doctortc-X.Y.Z.min.js` libraries
 
     grunt dist
 
