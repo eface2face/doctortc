@@ -1,0 +1,8 @@
+{
+	"preset": "crockford",
+	"validateIndentation": "\t",
+	"disallowKeywords": ["with"],
+	"excludeFiles": [
+		"node_modules/**"
+	]
+}

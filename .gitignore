@@ -1,4 +1,2 @@
-node_modules/
-dist/
-test/
-.DS_Store
+/node_modules/
+/dist/
