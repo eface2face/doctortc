@@ -30,7 +30,7 @@ Arguments:
 * `errback`: User provided function that is called upon test failure. The function is called with a single `error` argument whose value is one of the following strings:
     * `CONNECTION TIMEOUT`: The connection to the TURN server failed due to timeout (note that, as per current WebRTC specs, if the TURN crendentials are wrong the application cannot realize of it so timeout will raise).
     * `INTERNAL_ERROR`: Unknown or unexpected error (may be caused due to the browser's WebRTC stack, issues in the TURN server...).
-    * `CANCELLED`: The test was cancelled while running (the user called `cancel()` on it).
+    * `CANCELED`: The test was canceled while running (the user called `cancel()` on it).
 * `options`: An Object with optional extra parameters. Available parameters in this Object are:
     * `connectTimeout`: An integer representing the maximum duration while connecting to the TURN server (in milliseconds). Default value is 4000.
     * `numPackets`: Number of packets to be sent during the test. Default value is 800;
