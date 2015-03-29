@@ -11,6 +11,11 @@ The top module exported by the library.
 Reference to the [debug](https://github.com/visionmedia/debug) module.
 
 
+### `doctortc.browser`
+
+String indicating browser model and version.
+
+
 ## Functions
 
 
