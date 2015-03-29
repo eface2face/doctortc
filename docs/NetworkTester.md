@@ -10,6 +10,7 @@ Object containing error constants (useful to check the `error` in the `errback`)
 
     {
         CONNECTION_TIMEOUT: 'connection timeout',
+        TEST_TIMEOUT: 'test timeout',
         INTERNAL_ERROR: 'internal error',
         CANCELED: 'canceled'
     }
