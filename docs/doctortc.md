@@ -32,7 +32,7 @@ Arguments:
 
 * `turnServer`: An Object with the TURN server information. This parameter matches the [`RTCIceServer`](http://www.w3.org/TR/webrtc/#idl-def-RTCIceServer) Object in WebRTC API.
 * `callback`: User provided function that is called upon test success. The function is called with the test results as arguments (see below for more information).
-* `errback`: User provided function that is called upon test failure. The function is called with a single `error` argument whose value is one of the following strings:
+* `errback`: User provided function that is called upon test failure. The function is called with a `error` argument (whose value is one of the following strings) and a `description` argument which extends the cause of the error:
     * `CONNECTION TIMEOUT`: The connection to the TURN server failed due to timeout (note that, as per current WebRTC specs, if the TURN crendentials are wrong the application cannot realize of it so timeout will raise).
     * `INTERNAL_ERROR`: Unknown or unexpected error (may be caused due to the browser's WebRTC stack, issues in the TURN server...).
     * `CANCELED`: The test was canceled while running (the user called `cancel()` on it).
