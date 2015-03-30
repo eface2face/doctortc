@@ -16,6 +16,19 @@ Reference to the [debug](https://github.com/visionmedia/debug) module.
 String indicating browser model and version.
 
 
+### `doctortc.errors`
+
+Object containing error constants (useful to check the `error` in the `errback`).
+
+    {
+        CONNECTION_TIMEOUT: 'connection timeout',
+        TEST_TIMEOUT: 'test timeout',
+        INTERNAL_ERROR: 'internal error',
+        CANCELED: 'canceled'
+    }
+
+
+
 ## Functions
 
 
