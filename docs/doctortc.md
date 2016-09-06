@@ -37,13 +37,13 @@ Object containing error constants (useful to check the `error` in the `errback`)
 Returns `true` if the browser supports WebRTC.
 
 
-### `doctortc.testNetwork(turnServer, callback, errback, options)`
+### `doctortc.test(turnServers, callback, errback, options)`
 
-Checks network connectivity by connecting to a TURN server and performs bandwitdh calculation by sending and receiving packets via WebRTC DataChannels.
+Checks network connectivity by connecting to a TURN server(s) and performs bandwitdh calculation by sending and receiving packets via WebRTC DataChannels.
 
 Arguments:
 
-* `turnServer`: An Object with the TURN server information. This parameter matches the [`RTCIceServer`](http://www.w3.org/TR/webrtc/#idl-def-RTCIceServer) Object in WebRTC API.
+* `turnServers`: An Array of [`RTCIceServer`](http://www.w3.org/TR/webrtc/#idl-def-RTCIceServer) Objects.
 * `callback`: User provided function that is called upon test success. The function is called with the test results as arguments (see below for more information).
 * `errback`: User provided function that is called upon test failure. The function is called with a `error` argument (whose value is one of the following strings) and a `description` argument which extends the cause of the error:
     * `CONNECTION TIMEOUT`: The connection to the TURN server failed due to timeout (note that, as per current WebRTC specs, if the TURN crendentials are wrong the application cannot realize of it so timeout will raise).
@@ -88,12 +88,14 @@ The success callback is called with arguments `statistics`, `packetsInfo` and `p
 #### Usage example
 
     doctortc.test(
-        // turnServer
-        {
-            urls: 'turn:turn.domain.com:1234?transport=udp',
-            username: 'alice',
-            credential: '1234'
-        },
+        // turnServers
+        [
+            {
+                urls: 'turn:turn.domain.com:1234?transport=udp',
+                username: 'alice',
+                credential: '1234'
+            }
+        ],
         // callback
         function(statistics, packetsInfo, pendingOngoingData) {
             console.log('test completed');

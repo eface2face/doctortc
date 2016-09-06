@@ -1,7 +1,5 @@
-/**
- * Dependencies.
- */
-var gulp = require('gulp'),
+var
+	gulp = require('gulp'),
 	jscs = require('gulp-jscs'),
 	stylish = require('gulp-jscs-stylish'),
 	browserify = require('browserify'),
@@ -10,7 +8,6 @@ var gulp = require('gulp'),
 	jshint = require('gulp-jshint'),
 	filelog = require('gulp-filelog'),
 	pkg = require('./package.json');
-
 
 gulp.task('lint', function () {
 	var src = ['gulpfile.js', 'lib/**/*.js'];
@@ -24,9 +21,9 @@ gulp.task('lint', function () {
 		.pipe(jshint.reporter('fail'));
 });
 
-
 gulp.task('browserify', function () {
-	var browserified,
+	var
+		browserified,
 		src = pkg.main;
 
 	browserified = vinyl_transform(function (filename) {
@@ -44,8 +41,4 @@ gulp.task('browserify', function () {
 		.pipe(gulp.dest('dist/'));
 });
 
-
-gulp.task('devel', gulp.series('lint', 'browserify'));
-
-
-gulp.task('default', gulp.series('lint'));
+gulp.task('default', gulp.series('lint', 'browserify'));

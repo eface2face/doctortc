@@ -1,6 +1,6 @@
 # doctortc.js
 
-JavaScript utility for checking browser's WebRTC support and performing bandwidth calculation among other features such as network connectivity checks with the help of a TURN server.
+JavaScript utility for checking browser's WebRTC support and performing bandwidth calculation among other features such as network connectivity checks with the help of a TURN server(s).
 
 
 ## Installation
