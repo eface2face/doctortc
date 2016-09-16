@@ -6,11 +6,6 @@ The top module exported by the library.
 ## Properties
 
 
-### `doctortc.debug`
-
-Reference to the [debug](https://github.com/visionmedia/debug) module.
-
-
 ### `doctortc.browser`
 
 String indicating browser model and version.
@@ -31,6 +26,15 @@ Object containing error constants (useful to check the `error` in the `errback`)
 
 
 ## Functions
+
+
+### `doctortc.setRtcNinja(rtcninja)`
+
+Set the rtcninja module (instead of using the internal one).
+
+Arguments:
+
+* `rtcninja`: The rtcninja module.
 
 
 ### `doctortc.hasWebRTC()`
