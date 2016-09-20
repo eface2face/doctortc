@@ -1,6 +1,6 @@
 {
   "name": "doctortc",
-  "version": "1.2.3-pre",
+  "version": "1.2.3",
   "description": "JavaScript utility for checking browser's WebRTC support and performing bandwidth calculation among other features such as network connectivity checks with the help of a TURN server(s)",
   "main": "lib/doctortc.js",
   "repository": {
